@@ -1,0 +1,15 @@
+2026-10-30T20:15:51.491+08:00	 error 	Failed to create data directory: mkdir /data: read-only file system	caller=dockerCopilot/dockercopilot.go:76
+2026-10-30T20:15:51.491+08:00	 error 	Failed to create default imageLogos.js: open /data/config/imageLogos.js: no such file or directory	caller=dockerCopilot/dockercopilot.go:86
+2026-10-30T20:15:51.491+08:00	 error 	Unable to fetch docker images: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?	caller=utiles/image.go:22
+2026-10-30T20:15:51.492+08:00	 error 	启动时获取镜像列表失败（稍后自动重试）: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?	caller=dockerCopilot/dockercopilot.go:93
+2026-10-30T20:15:54.893+08:00	 error 	authorize failed: no token present in request
+=> GET /api/containers HTTP/1.1
+Host: 127.0.0.1:12799
+Accept: */*
+User-Agent: curl/8.7.1
+
+	caller=handler/authhandler.go:103	trace=dc7939eab3762d2110145feb53b02e41	span=ca424981390b589a
+2026-10-30T20:17:34.990+08:00	 error 	Failed to create data directory: mkdir /data: read-only file system	caller=dockerCopilot/dockercopilot.go:76
+2026-10-30T20:17:34.990+08:00	 error 	Failed to create default imageLogos.js: open /data/config/imageLogos.js: no such file or directory	caller=dockerCopilot/dockercopilot.go:86
+2026-10-30T20:17:34.990+08:00	 error 	Unable to fetch docker images: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?	caller=utiles/image.go:22
+2026-10-30T20:17:34.990+08:00	 error 	启动时获取镜像列表失败（稍后自动重试）: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?	caller=dockerCopilot/dockercopilot.go:93

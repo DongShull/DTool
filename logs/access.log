@@ -1,0 +1,18 @@
+2026-10-30T20:15:51.492+08:00	 info 	MCP 已挂载: /mcp（Streamable HTTP），共 26 个工具	caller=mcp/server.go:31
+2026-10-30T20:15:51.492+08:00	 info 	程序版本	caller=dockerCopilot/dockercopilot.go:154
+2026-10-30T20:15:54.872+08:00	 info 	[HTTP]  200  -  GET  / - 127.0.0.1:56631 - curl/8.7.1	duration=0.1ms	caller=handler/loghandler.go:147	trace=856c13583f74c730824f70be1311dcc2	span=3cac7cdbec7705ae
+2026-10-30T20:15:54.882+08:00	 info 	[HTTP]  404  -  GET  /manager - 127.0.0.1:56632 - curl/8.7.1	duration=0.0ms	caller=handler/loghandler.go:147	trace=ace5b4e5d677b25788541d81b6e20f8c	span=4020e2d002aa4905
+2026-10-30T20:15:54.893+08:00	 info 	[HTTP]  401  -  GET  /api/containers - 127.0.0.1:56633 - curl/8.7.1	duration=0.2ms	caller=handler/loghandler.go:147	trace=dc7939eab3762d2110145feb53b02e41	span=ca424981390b589a
+2026-10-30T20:15:54.902+08:00	 info 	[HTTP]  401  -  POST  /mcp - 127.0.0.1:56634 - curl/8.7.1	duration=0.0ms	caller=handler/loghandler.go:147	trace=ac00e8e03713dd725a83419f856b8915	span=fe7ce2c85d1d2208
+2026-10-30T20:15:58.137+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56637 - curl/8.7.1	caller=handler/loghandler.go:147	trace=8975d14f5963b523d8ba3bc72d0bf9a8	span=ae04176c040f7c05	duration=0.4ms
+2026-10-30T20:15:58.149+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56638 - curl/8.7.1	caller=handler/loghandler.go:147	trace=7b82c7e4b6d46781a2cab9a07e1750dd	span=9ea1bfecf3a479c3	duration=0.8ms
+2026-10-30T20:15:58.197+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56639 - curl/8.7.1	trace=c7f5b1de30382b87d7867a16d4b31503	span=0bda63a140a39436	duration=0.2ms	caller=handler/loghandler.go:147
+2026-10-30T20:16:01.099+08:00	 info 	Got signal 15, shutting down...	caller=proc/shutdown.go:84
+2026-10-30T20:17:34.991+08:00	 info 	MCP 已挂载: /mcp（Streamable HTTP），共 26 个工具	caller=mcp/server.go:31
+2026-10-30T20:17:34.991+08:00	 info 	程序版本	caller=dockerCopilot/dockercopilot.go:154
+2026-10-30T20:17:38.379+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56703 - curl/8.7.1	duration=0.3ms	caller=handler/loghandler.go:147	trace=3a36676809abb578a1b12e2bd9fb9dc9	span=5b2586d4c3023acd
+2026-10-30T20:17:38.393+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56704 - curl/8.7.1	duration=0.3ms	caller=handler/loghandler.go:147	trace=a3ce9bf2252f97337f659491910811c3	span=7e423e6c43715987
+2026-10-30T20:17:38.426+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56705 - curl/8.7.1	duration=0.3ms	caller=handler/loghandler.go:147	trace=004f73f92d4f320fb9a7617138006261	span=2b68196a06e35282
+2026-10-30T20:17:38.460+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56707 - curl/8.7.1	duration=0.2ms	caller=handler/loghandler.go:147	trace=2b10d2f7b17ea5570004b2c52352dbf5	span=329c3b3adcd58d93
+2026-10-30T20:17:38.493+08:00	 info 	[HTTP]  200  -  POST  /mcp - 127.0.0.1:56709 - curl/8.7.1	duration=0.2ms	caller=handler/loghandler.go:147	trace=61da8cc943197b1f1a488d6b381be50e	span=a29cdf03fa16edc4
+2026-10-30T20:17:38.518+08:00	 info 	Got signal 15, shutting down...	caller=proc/shutdown.go:84
