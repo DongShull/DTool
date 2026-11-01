@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest"
 )
@@ -15,7 +15,7 @@ import (
 // Version 是 MCP server 对外声明的版本，与程序版本保持一致。
 const Version = "2.2.0"
 
-// Register 把 dockerCopilot 的全部能力注册为 MCP 工具，并挂载到 /mcp（Streamable HTTP）。
+// Register 把 DTool 的全部能力注册为 MCP 工具，并挂载到 /mcp（Streamable HTTP）。
 // 与 /api/* 并存：HTTP API 继续给脚本和旧客户端用，MCP 给 Agent 用。
 func Register(s *rest.Server, ctx *svc.ServiceContext) {
 	mcpServer := NewServer(ctx)
@@ -37,7 +37,7 @@ func Register(s *rest.Server, ctx *svc.ServiceContext) {
 // NewServer 构建并注册全部 MCP 工具，供 Register 与测试复用。
 func NewServer(ctx *svc.ServiceContext) *server.MCPServer {
 	mcpServer := server.NewMCPServer(
-		"dockerCopilot",
+		"DTool",
 		Version,
 		server.WithToolCapabilities(true),
 		server.WithRecovery(),

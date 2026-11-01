@@ -1,4 +1,4 @@
-# dockerCopilot
+# DTool
 
 <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
     <img alt="License: AGPLv3" src="https://shields.io/badge/License-AGPL%20v3-blue.svg">
@@ -16,8 +16,8 @@
 2. 指定镜像和 tag 更新
 3. 启动、停止、重启容器
 4. 重命名容器
-5. 批量删除无 TAG 镜像（`DELETE /api/images?filter=untagged` / MCP `dc_clean_images`）
-6. 批量删除未使用镜像（`DELETE /api/images?filter=unused` / MCP `dc_clean_images`）
+5. 批量删除无 TAG 镜像（`DELETE /api/images?filter=untagged` / MCP `dt_clean_images`）
+6. 批量删除未使用镜像（`DELETE /api/images?filter=unused` / MCP `dt_clean_images`）
 7. 更新进度查看（SSE 实时推送 / 轮询双通道，支持取消，重启不丢历史）
 8. 备份容器设置（JSON / docker-compose 双格式；每次备份独立文件，超出 `BACKUP_KEEP` 自动清理）
 9. 恢复容器设置
@@ -32,8 +32,8 @@ docker compose 安装（推荐；无需 privileged，仅挂载 docker.sock）
 
 ```
 services:
-  dockercopilot:
-    container_name: dockercopilot
+  dtool:
+    container_name: dtool
     restart: always
     network_mode: bridge
     ports:
@@ -46,7 +46,7 @@ services:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - secretKey=密码，必须大于八位且非纯数字
     # 改成你的 Docker Hub 账号；或使用 GitHub Release 的二进制自行构建
-    image: your-dockerhub-user/dockercopilot:latest
+    image: your-dockerhub-user/dtool:latest
 ```
 
 > 说明：容器内以 root 运行并挂载 `docker.sock` 即可管理 Docker，**不需要** `privileged: true`。
@@ -65,7 +65,7 @@ services:
 | `BACKUP_KEEP` | 7 | 每种备份（JSON / compose）保留份数，超出自动清理最旧的 |
 | `DelOldContainer` | true | 更新成功后删除旧容器（设为 `false` 保留） |
 | `CLEANUP_OLD_IMAGE` | true | 更新成功后清理不再被引用的旧镜像（`false` 关闭） |
-| `UPDATE_REPO` | DongShull/dockerCopilot | 版本检查与自更新仓库 |
+| `UPDATE_REPO` | DongShull/DTool | 版本检查与自更新仓库 |
 | `UPDATE_BRANCH` | latest | 版本检查分支 |
 | `UPDATE_SKIP_CHECKSUM` | false | 设为 `true` 时跳过自更新 SHA256 校验（仅用于过渡旧版本，不推荐） |
 | `githubProxy` | 空 | GitHub 代理前缀，如 `https://ghproxy.example/` |
@@ -82,7 +82,7 @@ services:
 
 ### MCP（推荐给 Agent）
 
-`http://<host>:12712/mcp`，Streamable HTTP，27 个 `dc_*` 工具覆盖容器、镜像、备份恢复、
+`http://<host>:12712/mcp`，Streamable HTTP，27 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
 进度、设置与自更新。鉴权支持 `Authorization: Bearer <token>`、`X-MCP-Token` 与 `?token=`。
 详见 [docs/MCP.md](docs/MCP.md)。
 
@@ -103,8 +103,8 @@ services:
 ## 已知限制
 
 - **私有仓库镜像无法自动检查更新**：程序不持有任何 registry 凭证，私有镜像的 digest 检查会静默跳过（日志可见），`haveUpdate` 恒为 false。
-- **FnOS 版不走在线更新链**：`/api/version?type=remote` 与 `dc_check_program_update` 会返回 `fnos=true` 与提示，自更新被明确禁止；请使用 FNOS 专用发布包更新。
-- **自更新回滚依赖启动脚本**：`start.sh` 会在换入新版前保留 `dockerCopilot.bak`，新版连续 3 次启动失败（启动后 30 秒内退出）自动回退；重建容器也能回到镜像自带版本。
+- **FnOS 版不走在线更新链**：`/api/version?type=remote` 与 `dt_check_program_update` 会返回 `fnos=true` 与提示，自更新被明确禁止；请使用 FNOS 专用发布包更新。
+- **自更新回滚依赖启动脚本**：`start.sh` 会在换入新版前保留 `DTool.bak`，新版连续 3 次启动失败（启动后 30 秒内退出）自动回退；重建容器也能回到镜像自带版本。
 
 ## 开发环境
 
@@ -115,7 +115,14 @@ go build ./...
 go test ./...
 ```
 
-仓库内附开发维护技能：[`skills/dockercopilot-maintainer/SKILL.md`](skills/dockercopilot-maintainer/SKILL.md)。
+仓库内附开发维护技能：[`skills/dtool-maintainer/SKILL.md`](skills/dtool-maintainer/SKILL.md)。
+
+## 致谢
+
+本项目基于 [onlyLTY/dockerCopilot](https://github.com/onlyLTY/dockerCopilot)（v2.1.3）二次开发而来。
+衷心感谢原作者 [onlyLTY](https://github.com/onlyLTY) 的出色工作——没有这个优秀的项目，就没有 DTool。
+上游项目自 2026-07 起停止更新，DTool 在其基础上继续维护与演进，遵循 AGPLv3 协议开源分发，
+并同样以开源方式回馈社区。再次感谢。
 该目录仅供开发使用，已通过 `.dockerignore` 排除，不会进入镜像或发布包。
 
 改造规划与缺陷清单见 [docs/ROADMAP.md](docs/ROADMAP.md)。

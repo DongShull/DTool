@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dockerCopilot 预检：只读，不修改仓库。
+# DTool 预检：只读，不修改仓库。
 set -u
 
 # 常见 Go 安装路径兜底（NAS/非交互 shell 常缺 PATH）
@@ -60,10 +60,10 @@ echo
 
 echo "== MCP =="
 if [ -d internal/mcp ]; then
-  TOOL_COUNT=$(grep -rho 'NewTool("dc_[a-z_]*"' internal/mcp/*.go | sort -u | wc -l | tr -d ' ')
+  TOOL_COUNT=$(grep -rho 'NewTool("dt_[a-z_]*"' internal/mcp/*.go | sort -u | wc -l | tr -d ' ')
   echo "internal/mcp 工具数: ${TOOL_COUNT}（期望 26）"
   if [ "$TOOL_COUNT" -eq 0 ]; then
-    echo "警告: 未发现 dc_* 工具注册"
+    echo "警告: 未发现 dt_* 工具注册"
   fi
   if grep -q "MCP_TOKEN" internal/mcp/server.go 2>/dev/null; then
     echo "MCP 鉴权: 已实现（MCP_TOKEN > secretKey）"

@@ -11,8 +11,8 @@
 版本号同时通过 ldflags 注入：
 
 ```bash
--X 'github.com/onlyLTY/dockerCopilot/internal/config.Version=<version>'
--X 'github.com/onlyLTY/dockerCopilot/internal/config.BuildDate=<date>'
+-X 'github.com/DongShull/DTool/internal/config.Version=<version>'
+-X 'github.com/DongShull/DTool/internal/config.BuildDate=<date>'
 ```
 
 ## 2. CI
@@ -25,27 +25,27 @@
 本地等价：
 
 ```bash
-skills/dockercopilot-maintainer/scripts/dev-check.sh
+skills/dtool-maintainer/scripts/dev-check.sh
 ```
 
 ## 3. Release 工作流
 
 | 工作流 | 触发 | 版本文件 | 产物 |
 |---|---|---|---|
-| `latest.yml` | `latest` 分支 | `version` | `dockerCopilot-<arch>.tar.gz` + `.sha256` |
+| `latest.yml` | `latest` 分支 | `version` | `DTool-<arch>.tar.gz` + `.sha256` |
 | `FNOS.yml` | `fn_version` 变更 / 手动 | `fn_version` | 同上，飞牛专用 |
 | `UGREEN.yml` | `ugreen_version` 变更 / 手动 | `ugreen_version` | 同上，绿联专用 |
 
-产物内是单个 `dockerCopilot-new`，`start.sh` 会在启动时把它移动为 `dockerCopilot`。
+产物内是单个 `DTool-new`，`start.sh` 会在启动时把它移动为 `DTool`。
 
 ## 4. DockerHub 工作流
 
 | 工作流 | 分支 | 镜像 tag |
 |---|---|---|
-| `docker-build-push-latest.yml` | `latest-dev` | `dockercopilot:latest-dev` |
-| `docker-build-push-latest-stable.yml` | `latest`（`version` 变更） | `dockercopilot:latest` |
-| `docker-build-push-UGREEN.yml` | `latest-dev` | `dockercopilot:UGREEN-DEV` |
-| `docker-build-push-UGREEN-stable.yml` | `latest`（`ugreen_version` 变更） | `dockercopilot:UGREEN` |
+| `docker-build-push-latest.yml` | `latest-dev` | `dtool:latest-dev` |
+| `docker-build-push-latest-stable.yml` | `latest`（`version` 变更） | `dtool:latest` |
+| `docker-build-push-UGREEN.yml` | `latest-dev` | `dtool:UGREEN-DEV` |
+| `docker-build-push-UGREEN-stable.yml` | `latest`（`ugreen_version` 变更） | `dtool:UGREEN` |
 
 需要 Secrets：
 
@@ -58,18 +58,18 @@ fork 也可用；只要配置自己的 Secrets。
 
 `.github/workflows/docker-build-push-*.yml` 的流程：
 
-1. 交叉编译 `dist/linux/<arch>/dockerCopilot`；
-2. 整理 `dc-back-<arch>/{dist,etc}`；
+1. 交叉编译 `dist/linux/<arch>/DTool`；
+2. 整理 `dt-back-<arch>/{dist,etc}`；
 3. Docker buildx 构建并推送；
 4. `docker/Dockerfile` 只 COPY：
-   - `dc-back/dist/$TARGETPLATFORM/dockerCopilot`
-   - `dc-back/etc/`
+   - `dt-back/dist/$TARGETPLATFORM/DTool`
+   - `dt-back/etc/`
    - `start.sh`
 
 ## 6. 发布前检查
 
 ```bash
-skills/dockercopilot-maintainer/scripts/release-check.sh
+skills/dtool-maintainer/scripts/release-check.sh
 ```
 
 检查项：
@@ -86,10 +86,10 @@ skills/dockercopilot-maintainer/scripts/release-check.sh
 
 ```bash
 # 二进制
-tar -tzf dockerCopilot-amd64.tar.gz
+tar -tzf DTool-amd64.tar.gz
 
 # 校验
-sha256sum -c dockerCopilot-amd64.tar.gz.sha256
+sha256sum -c DTool-amd64.tar.gz.sha256
 
 # 镜像内不应出现 skills
 docker run --rm --entrypoint sh <image> -c 'ls /app'
@@ -98,7 +98,7 @@ docker run --rm --entrypoint sh <image> -c 'ls /app'
 镜像 `/app` 应只有：
 
 ```text
-dockerCopilot
+DTool
 etc/
 start.sh
 ```

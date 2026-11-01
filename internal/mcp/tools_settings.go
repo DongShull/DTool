@@ -8,12 +8,12 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/utiles"
 )
 
 func registerSettingsTools(s *server.MCPServer, ctx *svc.ServiceContext) {
-	s.AddTool(mcp.NewTool("dc_get_settings",
+	s.AddTool(mcp.NewTool("dt_get_settings",
 		mcp.WithDescription("读取运行时设置（当前配置的备份目录与实际生效的备份目录）"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		s := utiles.LoadSettings()
@@ -23,7 +23,7 @@ func registerSettingsTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		}), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_update_settings",
+	s.AddTool(mcp.NewTool("dt_update_settings",
 		mcp.WithDescription("更新运行时设置（目前支持 backupDir，必须是绝对路径且可写）"),
 		mcp.WithString("backupDir", mcp.Required(), mcp.Description("备份目录绝对路径")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

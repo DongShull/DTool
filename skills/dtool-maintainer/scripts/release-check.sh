@@ -48,7 +48,7 @@ echo
 
 echo "== 5. MCP =="
 if go test ./internal/mcp/ -count=1 >/dev/null 2>&1; then
-  COUNT=$(grep -rho 'NewTool("dc_[a-z_]*"' internal/mcp/*.go | sort -u | wc -l | tr -d ' ')
+  COUNT=$(grep -rho 'NewTool("dt_[a-z_]*"' internal/mcp/*.go | sort -u | wc -l | tr -d ' ')
   echo "MCP 测试通过，注册工具数: ${COUNT}"
 else
   echo "失败: internal/mcp 测试未通过" >&2

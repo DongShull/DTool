@@ -6,13 +6,13 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/utiles"
 )
 
 func registerVersionTools(s *server.MCPServer, ctx *svc.ServiceContext) {
-	s.AddTool(mcp.NewTool("dc_get_version",
+	s.AddTool(mcp.NewTool("dt_get_version",
 		mcp.WithDescription("获取当前本地版本号与构建时间"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return jsonResult(map[string]string{
@@ -21,7 +21,7 @@ func registerVersionTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		}), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_check_program_update",
+	s.AddTool(mcp.NewTool("dt_check_program_update",
 		mcp.WithDescription("检查程序是否有新版本（比对远端仓库版本号）；FNOS 版本由专用发布包管理，会返回 fnos=true"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		remote, err := utiles.GetRemoteVersion()
@@ -44,8 +44,8 @@ func registerVersionTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		}), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_update_program",
-		mcp.WithDescription("更新 dockerCopilot 自身：下载新版本、校验、解压并重启进程（会中断当前服务）"),
+	s.AddTool(mcp.NewTool("dt_update_program",
+		mcp.WithDescription("更新 DTool 自身：下载新版本、校验、解压并重启进程（会中断当前服务）"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if err := utiles.UpdateProgram(ctx); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

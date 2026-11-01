@@ -1,4 +1,4 @@
-Name: dockerCopilot
+Name: DTool
 Host: 0.0.0.0
 Port: 12712
 # 全局请求超时 10 分钟（此前是 1e14ms≈3170 年，等于没有超时）。

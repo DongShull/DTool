@@ -119,7 +119,7 @@ data: {}
 
 - `UPDATE_REPO`
 - `UPDATE_BRANCH`
-- Release 资产 `dockerCopilot-<arch>.tar.gz` 与 `.sha256`
+- Release 资产 `DTool-<arch>.tar.gz` 与 `.sha256`
 - 可选 `githubProxy`
 - `UPDATE_SKIP_CHECKSUM=true` 仅用于旧版本过渡
 

@@ -1,0 +1,88 @@
+name: FNOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - latest
+    paths:
+      - fn_version
+
+permissions:
+  contents: write
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [ amd64, arm64 ]
+    steps:
+      - name: Checkout code back end
+        uses: actions/checkout@v3
+
+      - name: Get version from file
+        id: get_version
+        run: |
+          echo "version=$(cat fn_version)" >> $GITHUB_ENV
+
+      - name: Cache Go Modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/msaber-back/pkg/mod
+          key: go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-mod-
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24.1'
+          cache: false
+
+      - name: Build for ${{ matrix.arch }}
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} go build -a --trimpath -ldflags="-w -s -X 'github.com/DongShull/DTool/internal/config.Version=${{ env.version }}' -X 'github.com/DongShull/DTool/internal/config.BuildDate=$(date)'" -o dist/linux/${{ matrix.arch }}/DTool-new .
+
+      - name: Compress binary
+        run: |
+          tar -czvf DTool-${{ matrix.arch }}.tar.gz -C dist/linux/${{ matrix.arch }} DTool-new
+
+      - name: Generate checksum
+        run: sha256sum DTool-${{ matrix.arch }}.tar.gz > DTool-${{ matrix.arch }}.tar.gz.sha256
+
+      - name: List current directory
+        run: ls -la
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          exists=$(gh release view ${{ env.version }} 2>&1 | grep "release not found" || true)
+          if [[ -z "$exists" ]]; then
+            echo "Release exists"
+            echo "RELEASE_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "Release does not exist"
+            echo "RELEASE_EXISTS=false" >> $GITHUB_ENV
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release if not exists
+        if: env.RELEASE_EXISTS == 'false'
+        run: |
+          gh release create ${{ env.version }} \
+            --title "${{ env.version }}" \
+            --notes "Release of version ${{ env.version }}" \
+            || gh release view ${{ env.version }} >/dev/null
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Asset for ${{ matrix.arch }}
+        run: |
+          gh release upload ${{ env.version }} \
+            DTool-${{ matrix.arch }}.tar.gz \
+            DTool-${{ matrix.arch }}.tar.gz.sha256 \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

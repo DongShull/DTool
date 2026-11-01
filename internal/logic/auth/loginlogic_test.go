@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/types"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/types"
 )
 
 func TestLoginRejectsEmptyConfiguredSecret(t *testing.T) {

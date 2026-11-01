@@ -1,7 +1,7 @@
 ---
-name: dockercopilot-maintainer
+name: dtool-maintainer
 description: |
-  维护、二开、构建、发布和排障 dockerCopilot（DC）项目时使用。触发场景包括：
+  维护、二开、构建、发布和排障 DTool（DC）项目时使用。触发场景包括：
   修改 Go 后端、容器更新/回滚、备份与 force 恢复、Compose 导出、Docker 网络清洗、
   进度任务与 SSE、审计日志、自更新与 SHA256、MCP（/mcp）工具增删与鉴权、HTTP API、
   FNOS/UGREEN 构建、GitHub Actions、Docker 镜像打包、日志中文化，
@@ -12,16 +12,16 @@ metadata:
     emoji: "🧭"
   octop:
     label:
-      zh: "dockerCopilot 维护"
-      en: "dockerCopilot Maintainer"
+      zh: "DTool 维护"
+      en: "DTool Maintainer"
     summary:
       zh: "DC 项目的开发、构建、发布与排障全流程技能。"
       en: "Full workflow skill for developing, building, releasing and troubleshooting DC."
 ---
 
-# dockerCopilot 维护技能
+# DTool 维护技能
 
-dockerCopilot（简称 DC）是一个 Go 后端 + MCP/HTTP API 的 Docker 容器管理工具，
+DTool（简称 DC）是一个 Go 后端 + MCP/HTTP API 的 Docker 容器管理工具，
 **已移除网页前端**：所有能力通过 `/api/*`（HTTP）与 `/mcp`（Streamable HTTP）暴露。
 本技能覆盖：代码地图、开发检查、备份恢复、更新回滚、Compose 导出、MCP 工具适配、
 FNOS/UGREEN 构建、CI/Release、镜像边界和日志排障。
@@ -32,7 +32,7 @@ FNOS/UGREEN 构建、CI/Release、镜像边界和日志排障。
 
 ```text
 go.mod
-dockercopilot.go
+dtool.go
 docker/Dockerfile
 internal/
 docs/MCP.md
@@ -42,12 +42,12 @@ ugreen_version
 ```
 
 如果不在仓库根目录，先 `cd` 到包含 `go.mod` 的目录。不要假设路径是
-`/vol1/1000/Github/dockerCopilot`；以实际仓库为准。
+`/vol1/1000/Github/DTool`；以实际仓库为准。
 
 ## 1. 快速预检
 
 ```bash
-skills/dockercopilot-maintainer/scripts/preflight.sh
+skills/dtool-maintainer/scripts/preflight.sh
 ```
 
 它会检查：
@@ -64,7 +64,7 @@ skills/dockercopilot-maintainer/scripts/preflight.sh
 
 | 路径 | 职责 |
 |---|---|
-| `dockercopilot.go` | 启动、配置、日志、路由注册、定时任务 |
+| `dtool.go` | 启动、配置、日志、路由注册、定时任务 |
 | `internal/handler/` | HTTP handler，goctl 生成 |
 | `internal/logic/` | 业务逻辑，参数校验后调用 `internal/utiles` |
 | `internal/svc/` | ServiceContext：Docker 客户端、进度、设置、Hub 镜像信息 |
@@ -81,9 +81,9 @@ skills/dockercopilot-maintainer/scripts/preflight.sh
 ## 3. 开发检查（每次改完必跑）
 
 ```bash
-skills/dockercopilot-maintainer/scripts/dev-check.sh
+skills/dtool-maintainer/scripts/dev-check.sh
 # 需要 race：
-skills/dockercopilot-maintainer/scripts/dev-check.sh --race
+skills/dtool-maintainer/scripts/dev-check.sh --race
 ```
 
 等价手动命令：
@@ -178,7 +178,7 @@ git diff --check
 
 - 使用中文；
 - `SetupLog` 使用 `Encoding: "plain"`，输出“时间 + 级别 + 内容”；
-- 不要恢复 `dockerCopilot:` 前缀；
+- 不要恢复 `DTool:` 前缀；
 - HTTP 404/500 等错误要以中文描述输出；
 - `docker compose logs` 的前缀用 `--no-log-prefix` 去掉，不要改代码硬扛。
 
@@ -192,7 +192,7 @@ git diff --check
 |---|---|
 | `server.go` | 构建 MCPServer、注册 26 个工具、挂载 `/mcp`、token 鉴权中间件 |
 | `utils.go` | `textResult` / `jsonResult` / 参数读取等公共辅助 |
-| `tools_common.go` | `dc_ping` / `dc_info`（含 Docker daemon 真实 Ping） |
+| `tools_common.go` | `dt_ping` / `dt_info`（含 Docker daemon 真实 Ping） |
 | `tools_container.go` | 列表、inspect、启停重启、重命名、更新、自动更新 |
 | `tools_image.go` | 镜像列表、更新检查、删除 |
 | `tools_backup.go` | JSON/Compose 备份、列表、恢复、删除 |
@@ -203,7 +203,7 @@ git diff --check
 新增工具必须：
 
 1. 复用 `internal/utiles` / `internal/logic`，不要在 `internal/mcp` 里重写 Docker 逻辑；
-2. 名称以 `dc_` 开头、描述用中文、必填参数用 `mcp.Required()`；
+2. 名称以 `dt_` 开头、描述用中文、必填参数用 `mcp.Required()`；
 3. 破坏性操作补 `utiles.AuditLog(...)`；
 4. 长任务用 `ctx.RegisterTask/CancelTask/FinishTask` 并返回最终进度；
 5. 在 `internal/mcp/mcp_test.go` 的 `expectedTools` 里登记，保证工具清单可回归。
@@ -217,28 +217,28 @@ git diff --check
 
 ```bash
 # amd64 + version
-skills/dockercopilot-maintainer/scripts/build-linux.sh
+skills/dtool-maintainer/scripts/build-linux.sh
 
 # arm64 + fn_version
-skills/dockercopilot-maintainer/scripts/build-linux.sh arm64 fn_version
+skills/dtool-maintainer/scripts/build-linux.sh arm64 fn_version
 ```
 
-产物：`dist/linux/<arch>/dockerCopilot-new`。
+产物：`dist/linux/<arch>/DTool-new`。
 
 手动等价：
 
 ```bash
 VERSION=$(cat version)
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a --trimpath \
-  -ldflags="-w -s -X 'github.com/onlyLTY/dockerCopilot/internal/config.Version=$VERSION' \
-  -X 'github.com/onlyLTY/dockerCopilot/internal/config.BuildDate=$(date)'" \
-  -o dist/linux/amd64/dockerCopilot-new .
+  -ldflags="-w -s -X 'github.com/DongShull/DTool/internal/config.Version=$VERSION' \
+  -X 'github.com/DongShull/DTool/internal/config.BuildDate=$(date)'" \
+  -o dist/linux/amd64/DTool-new .
 ```
 
 ## 7. 发布
 
 ```bash
-skills/dockercopilot-maintainer/scripts/release-check.sh
+skills/dtool-maintainer/scripts/release-check.sh
 ```
 
 流程：
@@ -254,10 +254,10 @@ skills/dockercopilot-maintainer/scripts/release-check.sh
 
 | 工作流 | 标签 |
 |---|---|
-| `docker-build-push-latest.yml` | `dockercopilot:latest-dev` |
-| `docker-build-push-latest-stable.yml` | `dockercopilot:latest` |
-| `docker-build-push-UGREEN.yml` | `dockercopilot:UGREEN-DEV` |
-| `docker-build-push-UGREEN-stable.yml` | `dockercopilot:UGREEN` |
+| `docker-build-push-latest.yml` | `dtool:latest-dev` |
+| `docker-build-push-latest-stable.yml` | `dtool:latest` |
+| `docker-build-push-UGREEN.yml` | `dtool:UGREEN-DEV` |
+| `docker-build-push-UGREEN-stable.yml` | `dtool:UGREEN` |
 
 详细说明见 `references/release.md`。
 
@@ -268,8 +268,8 @@ skills/dockercopilot-maintainer/scripts/release-check.sh
 三层保护：
 
 1. `docker/Dockerfile` 只白名单 COPY：
-   - `dc-back/dist/$TARGETPLATFORM/dockerCopilot`
-   - `dc-back/etc/.`
+   - `dt-back/dist/$TARGETPLATFORM/DTool`
+   - `dt-back/etc/.`
    - `start.sh`
 2. `.dockerignore` 排除 `skills/`；
 3. `scripts/package-audit.sh` 检查：
@@ -281,7 +281,7 @@ skills/dockercopilot-maintainer/scripts/release-check.sh
 每次改 Dockerfile 或打包流程后必须跑：
 
 ```bash
-skills/dockercopilot-maintainer/scripts/package-audit.sh
+skills/dtool-maintainer/scripts/package-audit.sh
 ```
 
 ## 9. FNOS / UGREEN
@@ -324,7 +324,7 @@ docker compose logs --no-log-prefix -f
 - [ ] 必要时 `go test -race ./...` 通过
 - [ ] 新增回归测试
 - [ ] `git diff --check` 通过
-- [ ] 日志为中文，无 `dockerCopilot:` 前缀
+- [ ] 日志为中文，无 `DTool:` 前缀
 - [ ] `package-audit.sh` 通过
 - [ ] `/mcp` 工具清单与 `docs/MCP.md` 一致
 - [ ] 版本文件已更新

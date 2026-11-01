@@ -8,19 +8,19 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/utiles"
 )
 
 func registerCommonTools(s *server.MCPServer, ctx *svc.ServiceContext) {
-	s.AddTool(mcp.NewTool("dc_ping",
-		mcp.WithDescription("健康检查：确认 dockerCopilot 服务存活"),
+	s.AddTool(mcp.NewTool("dt_ping",
+		mcp.WithDescription("健康检查：确认 DTool 服务存活"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return textResult("pong from dockerCopilot"), nil
+		return textResult("pong from DTool"), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_info",
+	s.AddTool(mcp.NewTool("dt_info",
 		mcp.WithDescription("获取服务运行信息：版本、构建时间、监听地址、Docker daemon 连通性、备份目录、MCP 鉴权状态"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		info := map[string]any{

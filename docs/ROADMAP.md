@@ -1,4 +1,4 @@
-# dockerCopilot 改造规划（ROADMAP）
+# DTool 改造规划（ROADMAP）
 
 > 本项目自 v2.2.0 起由 DongShull 独立维护（fork 自 onlyLTY/dockerCopilot v2.1.3，上游已停止更新）。
 > 本文件记录 v2.1.3 基线体检结论与改造路线。
@@ -24,7 +24,7 @@
 12. `checkImageInUsed` O(容器×镜像) 双重循环
 13. restore 中永假的死代码分支
 14. JWT 84 天有效、secretKey 兼作签名密钥（记录在案，暂无计划改动）
-15. `Timeout: 1e14`、CORS `*`、`InsecureSkipVerify`（已加 REGISTRY_INSECURE 开关；Timeout 已改为 600000ms，SSE 路由带 `WithSSE()` 走 Accept 头豁免，见 `etc/dockerCopilot.yaml` 注释）
+15. `Timeout: 1e14`、CORS `*`、`InsecureSkipVerify`（已加 REGISTRY_INSECURE 开关；Timeout 已改为 600000ms，SSE 路由带 `WithSSE()` 走 Accept 头豁免，见 `etc/DTool.yaml` 注释）
 
 ## 二、分期计划
 
@@ -52,7 +52,7 @@
 
 - 前端（`go:embed front/*`、`/manager` 静态路由、CI 的前端构建 job）整体移除，`GET /` 改为返回 JSON 状态，同时满足容器 HEALTHCHECK 的 200 要求。
 - 保留全部 `/api/*` 路由：脚本、CI 与旧客户端不受影响，MCP 与 API 共用同一套 `internal/utiles` / `internal/logic` 实现。
-- 新增 `internal/mcp/`：基于 `mark3labs/mcp-go` 的 Streamable HTTP 服务，挂载 `/mcp`，注册 26 个 `dc_*` 工具，覆盖容器、镜像、备份恢复、进度、设置与自更新。
+- 新增 `internal/mcp/`：基于 `mark3labs/mcp-go` 的 Streamable HTTP 服务，挂载 `/mcp`，注册 26 个 `dt_*` 工具，覆盖容器、镜像、备份恢复、进度、设置与自更新。
 - `/mcp` 默认鉴权：`MCP_TOKEN` 优先，未设置时回退 `secretKey`；支持 `Authorization: Bearer`、`X-MCP-Token`、`?token=` 三种携带方式，比较使用常量时间算法。`MCP_TOKEN=off` 可显式关闭（仅隔离内网）。
 - 破坏性 MCP 操作复用现有审计与通知；长任务复用 `RegisterTask`/`CancelTask`/`FinishTask` 与进度持久化。
 
@@ -65,7 +65,7 @@
 | `BACKUP_DIR` | /data/backups | 容器备份目录（优先级：env > Settings API 配置 > 默认） |
 | `DelOldContainer` | true | 更新成功后是否删除旧容器（"false" 保留） |
 | `CLEANUP_OLD_IMAGE` | true | 更新成功后是否清理不再被引用的旧镜像 |
-| `UPDATE_REPO` | DongShull/dockerCopilot | 版本检查与自更新仓库 |
+| `UPDATE_REPO` | DongShull/DTool | 版本检查与自更新仓库 |
 | `UPDATE_BRANCH` | latest | 版本检查分支 |
 | `githubProxy` | 空 | GitHub 代理前缀 |
 | `REGISTRY_INSECURE` | false | 设为 `true` 时 registry 检测跳过 TLS 校验（默认严格校验） |

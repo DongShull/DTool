@@ -5,13 +5,13 @@ WORKDIR /app
 
 ARG TARGETPLATFORM
 
-COPY dc-back/dist/$TARGETPLATFORM/dockerCopilot ./dockerCopilot
-COPY dc-back/etc/. ./etc
+COPY dt-back/dist/$TARGETPLATFORM/DTool ./DTool
+COPY dt-back/etc/. ./etc
 COPY start.sh ./start.sh
 
 RUN apk add --no-cache tzdata \
     && chmod +x start.sh \
-    && chmod +x dockerCopilot
+    && chmod +x DTool
 
 # 设置环境变量
 ENV secretKey="" \

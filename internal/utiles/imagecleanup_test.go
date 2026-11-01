@@ -3,7 +3,7 @@ package utiles
 import (
 	"testing"
 
-	MyType "github.com/onlyLTY/dockerCopilot/internal/types"
+	MyType "github.com/DongShull/DTool/internal/types"
 )
 
 func TestPickImagesForCleanupUntagged(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/svc"
 )
 
 // webindexHandler 在去前端后作为健康检查与能力说明入口。
@@ -16,7 +16,7 @@ func webindexHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := svcInfoResponse{
 			Code: http.StatusOK,
-			Msg:  "dockerCopilot API-only mode",
+			Msg:  "DTool API-only mode",
 			Data: svcInfoData{
 				Version: config.Version,
 				MCP:     "/mcp",
@@ -26,7 +26,7 @@ func webindexHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		body, err := json.Marshal(resp)
 		if err != nil {
 			// Marshal 常量结构不会失败，防御性兜底保证健康检查始终 200。
-			body = []byte(`{"code":200,"msg":"dockerCopilot API-only mode"}`)
+			body = []byte(`{"code":200,"msg":"DTool API-only mode"}`)
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)

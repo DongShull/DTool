@@ -6,8 +6,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"io"
 	"net/http"
@@ -20,7 +20,7 @@ import (
 )
 
 // updateProgramMu 串行化自更新：并发两次调用会交错写同一个
-// dockerCopilot.tar.gz / dockerCopilot-new，可能装上损坏或错版的包。
+// DTool.tar.gz / DTool-new，可能装上损坏或错版的包。
 var updateProgramMu sync.Mutex
 
 // ErrUpdateProgramRunning 已有一轮自更新在执行时返回。
@@ -68,9 +68,9 @@ func UpdateProgram(ctx *svc.ServiceContext) error {
 	version := strings.TrimSpace(string(versionData))
 	logx.Info("获取到最新版本：", version)
 	// 2. 构造下载链接
-	downloadURL := fmt.Sprintf("%s/%s/dockerCopilot-%s.tar.gz", releaseBaseURL, version, runtime.GOARCH)
+	downloadURL := fmt.Sprintf("%s/%s/DTool-%s.tar.gz", releaseBaseURL, version, runtime.GOARCH)
 	logx.Info("下载链接：", downloadURL)
-	dest := "dockerCopilot.tar.gz"
+	dest := "DTool.tar.gz"
 	checksumDest := dest + ".sha256"
 	defer func() {
 		_ = os.Remove(dest)
@@ -100,7 +100,7 @@ func UpdateProgram(ctx *svc.ServiceContext) error {
 	}
 	logx.Info("下载成功")
 
-	// 先解压到临时目录，成功后再原子替换；避免解压失败留下半个 dockerCopilot-new
+	// 先解压到临时目录，成功后再原子替换；避免解压失败留下半个 DTool-new
 	// 被 start.sh 在下次启动时误当成新版本。
 	tmpDir, err := os.MkdirTemp(".", ".dc-update-")
 	if err != nil {
@@ -115,19 +115,19 @@ func UpdateProgram(ctx *svc.ServiceContext) error {
 	}
 
 	candidates := []string{
-		filepath.Join(tmpDir, "dockerCopilot-new"),
-		filepath.Join(tmpDir, "dist", "linux", runtime.GOARCH, "dockerCopilot-new"),
+		filepath.Join(tmpDir, "DTool-new"),
+		filepath.Join(tmpDir, "dist", "linux", runtime.GOARCH, "DTool-new"),
 	}
 	for _, candidate := range candidates {
 		if info, statErr := os.Stat(candidate); statErr == nil && info.Mode().IsRegular() {
-			if err := os.Rename(candidate, "dockerCopilot-new"); err != nil {
+			if err := os.Rename(candidate, "DTool-new"); err != nil {
 				return err
 			}
 			logx.Info("解压缩成功")
 			return nil
 		}
 	}
-	return fmt.Errorf("解压完成但未找到 dockerCopilot-new")
+	return fmt.Errorf("解压完成但未找到 DTool-new")
 }
 
 const maxUpdateAssetSize = 512 << 20 // 512MB，足够覆盖当前发布包，同时防止异常响应写满磁盘

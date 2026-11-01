@@ -14,8 +14,8 @@
 
 - 触发：`fn_version` 变更 / 手动；
 - 版本取自 `fn_version`；
-- 产物：`dockerCopilot-<arch>.tar.gz` + `.sha256`；
-- 二进制名：`dockerCopilot-new`；
+- 产物：`DTool-<arch>.tar.gz` + `.sha256`；
+- 二进制名：`DTool-new`；
 - 运行逻辑：
 
 ```go

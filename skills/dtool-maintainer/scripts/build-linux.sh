@@ -24,7 +24,7 @@ fi
 VERSION="$(tr -d '\r\n' < "$VERSION_FILE")"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 OUT_DIR="dist/linux/$ARCH"
-OUT="$OUT_DIR/dockerCopilot-new"
+OUT="$OUT_DIR/DTool-new"
 
 mkdir -p "$OUT_DIR"
 
@@ -34,7 +34,7 @@ echo "日期: $BUILD_DATE"
 
 CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
   go build -a --trimpath \
-  -ldflags="-w -s -X 'github.com/onlyLTY/dockerCopilot/internal/config.Version=$VERSION' -X 'github.com/onlyLTY/dockerCopilot/internal/config.BuildDate=$BUILD_DATE'" \
+  -ldflags="-w -s -X 'github.com/DongShull/DTool/internal/config.Version=$VERSION' -X 'github.com/DongShull/DTool/internal/config.BuildDate=$BUILD_DATE'" \
   -o "$OUT" .
 
 ls -lh "$OUT"

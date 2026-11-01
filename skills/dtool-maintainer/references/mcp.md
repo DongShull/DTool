@@ -10,7 +10,7 @@
 | 路径 | `/mcp` |
 | 方法 | `POST`（JSON-RPC）、`GET`（SSE）、`DELETE`（结束会话） |
 | 协议版本 | `2024-11-05`（客户端协商） |
-| 服务端标识 | `dockerCopilot` + `mcp.Version` |
+| 服务端标识 | `DTool` + `mcp.Version` |
 
 ## 2. 鉴权
 
@@ -28,7 +28,7 @@
 ## 3. 工具注册约定
 
 ```go
-s.AddTool(mcp.NewTool("dc_xxx",
+s.AddTool(mcp.NewTool("dt_xxx",
     mcp.WithDescription("中文描述"),
     mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID 或名称")),
 ), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -41,7 +41,7 @@ s.AddTool(mcp.NewTool("dc_xxx",
 
 约束：
 
-1. 工具名统一 `dc_` 前缀，中文描述；
+1. 工具名统一 `dt_` 前缀，中文描述；
 2. 必填参数必须 `mcp.Required()`；
 3. 工具里不做 HTTP 自调用，直接复用 Go 函数；
 4. 错误用 `mcp.NewToolResultError(err.Error())` 返回，让客户端看到 `isError: true`；
@@ -58,19 +58,19 @@ s.AddTool(mcp.NewTool("dc_xxx",
 6. 新增工具必须同步：
    - `internal/mcp/mcp_test.go` 的 `expectedTools`；
    - `docs/MCP.md` 工具清单；
-   - `dc_info` 里的 `toolCount`（自动统计，无需手改）。
+   - `dt_info` 里的 `toolCount`（自动统计，无需手改）。
 
 ## 4. 工具清单（27）
 
 | 分组 | 工具 |
 |---|---|
-| 通用 | `dc_ping` `dc_info` |
-| 容器 | `dc_list_containers` `dc_inspect_container` `dc_start_container` `dc_stop_container` `dc_restart_container` `dc_rename_container` `dc_update_container` `dc_autoupdate_run` |
-| 镜像 | `dc_list_images` `dc_check_image_update` `dc_remove_image` `dc_clean_images` |
-| 备份 | `dc_backup_containers` `dc_backup_compose` `dc_list_backups` `dc_restore_container` `dc_delete_backup` |
-| 进度 | `dc_list_progress` `dc_get_progress` `dc_cancel_progress` |
-| 设置 | `dc_get_settings` `dc_update_settings` |
-| 版本 | `dc_get_version` `dc_check_program_update` `dc_update_program` |
+| 通用 | `dt_ping` `dt_info` |
+| 容器 | `dt_list_containers` `dt_inspect_container` `dt_start_container` `dt_stop_container` `dt_restart_container` `dt_rename_container` `dt_update_container` `dt_autoupdate_run` |
+| 镜像 | `dt_list_images` `dt_check_image_update` `dt_remove_image` `dt_clean_images` |
+| 备份 | `dt_backup_containers` `dt_backup_compose` `dt_list_backups` `dt_restore_container` `dt_delete_backup` |
+| 进度 | `dt_list_progress` `dt_get_progress` `dt_cancel_progress` |
+| 设置 | `dt_get_settings` `dt_update_settings` |
+| 版本 | `dt_get_version` `dt_check_program_update` `dt_update_program` |
 
 ## 5. 测试
 
@@ -100,7 +100,7 @@ curl -s -X POST http://127.0.0.1:12712/mcp \
   -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $TOKEN" \
   -H "Mcp-Session-Id: $SID" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"dc_info","arguments":{}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"dt_info","arguments":{}}}'
 ```
 
 ## 7. 常见坑

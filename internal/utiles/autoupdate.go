@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -64,7 +64,7 @@ func RunAutoUpdate(serviceContext *svc.ServiceContext) {
 			continue
 		}
 		name := strings.TrimPrefix(c.Names[0], "/")
-		if strings.Contains(strings.ToLower(c.Image), "dockercopilot") {
+		if strings.Contains(strings.ToLower(c.Image), "dtool") {
 			// 不自动更新自己，避免更新过程中进程被杀。
 			continue
 		}

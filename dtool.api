@@ -97,7 +97,7 @@ type UpdateSettingsReq {
 	BackupDir string `json:"backupDir"`
 }
 
-service dockerCopilot {
+service DTool {
 	@handler webindex
 		get /
 }
@@ -106,7 +106,7 @@ service dockerCopilot {
 	prefix: /api
 	group: auth
 )
-service dockerCopilot {
+service DTool {
 	@handler Login
 		post /auth (LoginReq) returns (Resp)
 }
@@ -116,7 +116,7 @@ service dockerCopilot {
 	group: progress
 	jwt: Auth
 )
-service dockerCopilot {
+service DTool {
 	@handler ListProgress
 		get /progress returns (Resp)
 
@@ -135,7 +135,7 @@ service dockerCopilot {
 	group: container
 	jwt: Auth
 )
-service dockerCopilot {
+service DTool {
 	@handler containersList
 	get /containers returns (Resp)
 
@@ -175,7 +175,7 @@ service dockerCopilot {
 	group: image
 	jwt: Auth
 )
-service dockerCopilot {
+service DTool {
 	@handler imagesList
 	get /images returns (Resp)
 
@@ -188,7 +188,7 @@ service dockerCopilot {
 	group: settings
 	jwt: Auth
 )
-service dockerCopilot {
+service DTool {
 	@handler GetSettings
 		get /settings returns (Resp)
 
@@ -201,7 +201,7 @@ service dockerCopilot {
 	group: version
 	jwt: Auth
 )
-service dockerCopilot {
+service DTool {
 	@handler version
 		get /version (VersionReq) returns (Resp)
 
@@ -214,7 +214,7 @@ service dockerCopilot {
 	group: icons
 	jwt: Auth
 )
-service dockerCopilot {
+service DTool {
 	@handler upload
 		post / returns (Resp)
 

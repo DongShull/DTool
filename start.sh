@@ -3,10 +3,10 @@ cd "${WORKDIR:-/app}" || exit
 
 # 新发布包把二进制放在归档根目录；旧发布包在 dist/linux/<arch>/ 下。
 new_bin=""
-if [ -f "./dockerCopilot-new" ]; then
-    new_bin="./dockerCopilot-new"
+if [ -f "./DTool-new" ]; then
+    new_bin="./DTool-new"
 else
-    for candidate in ./dist/linux/*/dockerCopilot-new; do
+    for candidate in ./dist/linux/*/DTool-new; do
         if [ -f "$candidate" ]; then
             new_bin="$candidate"
             break
@@ -15,14 +15,14 @@ else
 fi
 
 if [ -n "$new_bin" ]; then
-    # 换入新版本前保留上一版（dockerCopilot.bak），供启动失败时自动回退。
-    if [ -f ./dockerCopilot ]; then
-        cp ./dockerCopilot ./dockerCopilot.bak
+    # 换入新版本前保留上一版（DTool.bak），供启动失败时自动回退。
+    if [ -f ./DTool ]; then
+        cp ./DTool ./DTool.bak
     fi
-    mv "$new_bin" ./dockerCopilot
-    chmod +x ./dockerCopilot
+    mv "$new_bin" ./DTool
+    chmod +x ./DTool
     # 清掉上一轮回退可能留下的失败版本残留。
-    rm -f ./dockerCopilot.failed
+    rm -f ./DTool.failed
 fi
 
 # ---- 自更新闭环：新版连续启动失败时自动回退到上一版 ----
@@ -40,7 +40,7 @@ trap on_term TERM INT
 
 while true; do
     start_ts=$(date +%s)
-    ./dockerCopilot &
+    ./DTool &
     child=$!
     wait "$child"
     code=$?
@@ -59,13 +59,13 @@ while true; do
     fails=$(cat "$FAIL_FILE" 2>/dev/null || echo 0)
     fails=$((fails + 1))
     echo "$fails" > "$FAIL_FILE"
-    echo "dockerCopilot exited with code $code after ${elapsed}s (fail $fails/$FAIL_THRESHOLD)" >&2
+    echo "DTool exited with code $code after ${elapsed}s (fail $fails/$FAIL_THRESHOLD)" >&2
 
-    if [ "$fails" -ge "$FAIL_THRESHOLD" ] && [ -f ./dockerCopilot.bak ]; then
+    if [ "$fails" -ge "$FAIL_THRESHOLD" ] && [ -f ./DTool.bak ]; then
         echo "rolling back to previous binary" >&2
-        mv ./dockerCopilot ./dockerCopilot.failed
-        mv ./dockerCopilot.bak ./dockerCopilot
-        chmod +x ./dockerCopilot
+        mv ./DTool ./DTool.failed
+        mv ./DTool.bak ./DTool
+        chmod +x ./DTool
         rm -f "$FAIL_FILE"
     fi
     sleep 2

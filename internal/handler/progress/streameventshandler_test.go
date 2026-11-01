@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/rest/pathvar"
 )
 

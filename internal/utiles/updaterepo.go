@@ -10,7 +10,7 @@ import (
 func UpdateRepo() string {
 	repo := strings.TrimSpace(os.Getenv("UPDATE_REPO"))
 	if repo == "" {
-		repo = "DongShull/dockerCopilot"
+		repo = "DongShull/DTool"
 	}
 	return repo
 }

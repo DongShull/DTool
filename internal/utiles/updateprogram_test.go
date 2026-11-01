@@ -41,14 +41,14 @@ func writeTarGz(t *testing.T, path string, entries map[string]string) {
 }
 
 func TestDecompressTarGzAllowsNormalRootFile(t *testing.T) {
-	archive := filepath.Join(t.TempDir(), "dockerCopilot.tar.gz")
-	writeTarGz(t, archive, map[string]string{"dockerCopilot-new": "binary"})
+	archive := filepath.Join(t.TempDir(), "DTool.tar.gz")
+	writeTarGz(t, archive, map[string]string{"DTool-new": "binary"})
 
 	dest := t.TempDir()
 	if err := decompressTarGz(archive, dest); err != nil {
 		t.Fatalf("decompressTarGz() error = %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dest, "dockerCopilot-new"))
+	data, err := os.ReadFile(filepath.Join(dest, "DTool-new"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestDecompressTarGzAllowsNormalRootFile(t *testing.T) {
 }
 
 func TestDecompressTarGzRejectsTraversal(t *testing.T) {
-	archive := filepath.Join(t.TempDir(), "dockerCopilot.tar.gz")
+	archive := filepath.Join(t.TempDir(), "DTool.tar.gz")
 	writeTarGz(t, archive, map[string]string{"../escape": "bad"})
 
 	dest := t.TempDir()

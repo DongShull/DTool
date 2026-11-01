@@ -7,12 +7,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/utiles"
 )
 
 func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
-	s.AddTool(mcp.NewTool("dc_list_containers",
+	s.AddTool(mcp.NewTool("dt_list_containers",
 		mcp.WithDescription("列出所有容器（含已停止），附带是否有可用更新、是否由 docker compose 管理"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		list, err := utiles.GetContainerList(ctx)
@@ -23,7 +23,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return jsonResult(list), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_inspect_container",
+	s.AddTool(mcp.NewTool("dt_inspect_container",
 		mcp.WithDescription("查看单个容器的完整 inspect 明细"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID 或名称")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -38,7 +38,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return jsonResult(info), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_start_container",
+	s.AddTool(mcp.NewTool("dt_start_container",
 		mcp.WithDescription("启动容器"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID 或名称")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -53,7 +53,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return textResult("started: " + id), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_stop_container",
+	s.AddTool(mcp.NewTool("dt_stop_container",
 		mcp.WithDescription("停止容器（发送 SIGTERM，10 秒宽限期）"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID 或名称")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -68,7 +68,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return textResult("stopped: " + id), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_restart_container",
+	s.AddTool(mcp.NewTool("dt_restart_container",
 		mcp.WithDescription("重启容器"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID 或名称")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -83,7 +83,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return textResult("restarted: " + id), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_rename_container",
+	s.AddTool(mcp.NewTool("dt_rename_container",
 		mcp.WithDescription("重命名容器"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID 或名称")),
 		mcp.WithString("newName", mcp.Required(), mcp.Description("新容器名")),
@@ -104,7 +104,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return textResult("renamed " + id + " -> " + newName), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_update_container",
+	s.AddTool(mcp.NewTool("dt_update_container",
 		mcp.WithDescription("一键更新容器：拉取新镜像 → 停止并改名旧容器 → 克隆配置创建新容器 → 启动并等待健康检查 → 删除旧容器 → 清理旧镜像；任一步失败自动回滚旧容器"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID")),
 		mcp.WithString("containerName", mcp.Required(), mcp.Description("容器名（用于进度展示与旧容器命名）")),
@@ -146,8 +146,8 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return jsonResult(final), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_autoupdate_run",
-		mcp.WithDescription("手动触发一轮自动更新：按 AUTOUPDATE_WHITELIST 过滤，仅更新运行中、非 compose 管理、非 dockerCopilot 自身的容器；全局串行，上一轮未结束时本轮跳过"),
+	s.AddTool(mcp.NewTool("dt_autoupdate_run",
+		mcp.WithDescription("手动触发一轮自动更新：按 AUTOUPDATE_WHITELIST 过滤，仅更新运行中、非 compose 管理、非 DTool 自身的容器；全局串行，上一轮未结束时本轮跳过"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if !utiles.AutoUpdateConfigured() {
 			return mcp.NewToolResultError("自动更新未配置：AUTOUPDATE_CRON 或 AUTOUPDATE_WHITELIST 为空"), nil

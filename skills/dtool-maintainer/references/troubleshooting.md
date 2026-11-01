@@ -14,7 +14,7 @@ Docker 客户端初始化失败
 检查：
 
 ```bash
-grep -n "secretKey" etc/dockerCopilot.yaml
+grep -n "secretKey" etc/DTool.yaml
 ls -l /var/run/docker.sock
 docker version
 ```
@@ -217,7 +217,7 @@ Digest为空
 - `UPDATE_REPO`
 - `UPDATE_BRANCH`
 - `version` 文件内容
-- Release 资产名：`dockerCopilot-<arch>.tar.gz`
+- Release 资产名：`DTool-<arch>.tar.gz`
 - `githubProxy` 是否拼接正确
 
 日志/错误可能显示：
@@ -233,23 +233,23 @@ Digest为空
 - 不要手动改包；
 - 旧版本过渡可临时 `UPDATE_SKIP_CHECKSUM=true`，但不推荐长期使用。
 
-### 解压后找不到 `dockerCopilot-new`
+### 解压后找不到 `DTool-new`
 
 发布包结构应为：
 
 ```text
-dockerCopilot-new
+DTool-new
 ```
 
 或旧结构：
 
 ```text
-dist/linux/<arch>/dockerCopilot-new
+dist/linux/<arch>/DTool-new
 ```
 
 ## 7. 日志
 
-### 日志中间出现 `dockerCopilot`
+### 日志中间出现 `DTool`
 
 两种来源：
 
@@ -320,4 +320,4 @@ echo $DOCKER_HOST
 ### 工具返回 `isError`
 
 业务错误（如 Docker 不可达）会以 `isError: true` + 文本返回，读 `content[0].text`。
-用 `dc_info` 看 `dockerReady` / `dockerError`。
+用 `dt_info` 看 `dockerReady` / `dockerError`。

@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/types"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/types"
+	"github.com/DongShull/DTool/internal/utiles"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 

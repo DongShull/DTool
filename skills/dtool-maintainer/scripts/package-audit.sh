@@ -21,10 +21,10 @@ else
     echo "未发现 COPY . / ADD ."
   fi
 
-  # 逐条检查 COPY/ADD：只允许 dc-back 与 start.sh
+  # 逐条检查 COPY/ADD：只允许 dt-back 与 start.sh
   while IFS= read -r line; do
     case "$line" in
-      *dc-back*|*start.sh*)
+      *dt-back*|*start.sh*)
         ;;
       *)
         fail "Dockerfile 出现非白名单 COPY/ADD: $line"
@@ -52,7 +52,7 @@ echo
 
 echo "== 3. 发布包内容（如果已生成） =="
 FOUND=0
-for f in dockerCopilot-*.tar.gz; do
+for f in DTool-*.tar.gz; do
   [ -e "$f" ] || continue
   FOUND=1
   echo "检查 $f"

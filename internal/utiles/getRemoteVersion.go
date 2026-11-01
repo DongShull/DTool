@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onlyLTY/dockerCopilot/internal/config"
+	"github.com/DongShull/DTool/internal/config"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 

@@ -5,7 +5,7 @@
 `main()`：
 
 1. `SetupLog("./logs")`：`logx.MustSetup` + 控制台 writer；当前使用 `Encoding: "plain"`，日志行只保留时间、级别、内容。
-2. `conf.Load` 读取 `etc/dockerCopilot.yaml`，支持环境变量覆盖。
+2. `conf.Load` 读取 `etc/DTool.yaml`，支持环境变量覆盖。
 3. 校验 `Auth.AccessSecret`（非空、非纯数字、长度 > 8）。
 4. `rest.MustNewServer` + CORS + 401 回调。
 5. `svc.NewServiceContext(c)`：
@@ -171,7 +171,7 @@ logx.AddWriter(logx.NewWriter(os.Stdout))
 - 文件：`logs/access.log`、`error.log` 等；
 - 控制台同样输出；
 - `plain` 格式：`时间 <TAB> 级别 <TAB> 内容`；
-- 不再输出 `dockerCopilot:` 服务名前缀。
+- 不再输出 `DTool:` 服务名前缀。
 
 ### 7.2 审计日志
 
@@ -198,8 +198,8 @@ logx.AddWriter(logx.NewWriter(os.Stdout))
 
 Dockerfile 只 COPY：
 
-- `dc-back/dist/$TARGETPLATFORM/dockerCopilot`
-- `dc-back/etc/`
+- `dt-back/dist/$TARGETPLATFORM/DTool`
+- `dt-back/etc/`
 - `start.sh`
 
 `skills/` 仅用于开发辅助，必须被 `.dockerignore` 排除，不进入镜像。

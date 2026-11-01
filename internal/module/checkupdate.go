@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	ref "github.com/distribution/reference"
-	"github.com/onlyLTY/dockerCopilot/internal/types"
+	"github.com/DongShull/DTool/internal/types"
 	"github.com/zeromicro/go-zero/core/logx"
 	"io"
 	"net"
@@ -60,7 +60,7 @@ func (i *ImageUpdateData) CheckUpdate(imageList []types.Image) {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, checkUpdateConcurrency)
 	for _, image := range imageList {
-		if strings.Contains(strings.ToLower(image.ImageName), "dockercopilot") {
+		if strings.Contains(strings.ToLower(image.ImageName), "dtool") {
 			continue
 		}
 		wg.Add(1)
@@ -180,7 +180,7 @@ func GetDigest(url string, token string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "dockerCopilot")
+	req.Header.Set("User-Agent", "DTool")
 
 	if token != "" {
 		req.Header.Add("Authorization", token)

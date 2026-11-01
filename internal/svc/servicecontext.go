@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/client"
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/module"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/module"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest"
 )

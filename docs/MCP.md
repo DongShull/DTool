@@ -1,6 +1,6 @@
 # MCP 接入说明
 
-dockerCopilot 自 v2.2.0 起内置 MCP（Model Context Protocol）服务，Agent 可以直接调用
+DTool 自 v2.2.0 起内置 MCP（Model Context Protocol）服务，Agent 可以直接调用
 容器管理、镜像管理、备份恢复、进度查询、设置与自更新等能力，无需再经过网页前端。
 
 HTTP API（`/api/*`）与 MCP（`/mcp`）**并存**，脚本和旧客户端不受影响。
@@ -50,7 +50,7 @@ environment:
 ```json
 {
   "mcpServers": {
-    "dockercopilot": {
+    "dtool": {
       "type": "streamable-http",
       "url": "http://127.0.0.1:12712/mcp",
       "headers": {
@@ -66,7 +66,7 @@ environment:
 ```json
 {
   "mcpServers": {
-    "dockercopilot": {
+    "dtool": {
       "url": "http://127.0.0.1:12712/mcp?token=<secretKey>"
     }
   }
@@ -75,73 +75,73 @@ environment:
 
 ## 4. 工具清单
 
-共 27 个工具，命名统一以 `dc_` 开头。
+共 27 个工具，命名统一以 `dt_` 开头。
 
 ### 通用
 
 | 工具 | 说明 |
 |---|---|
-| `dc_ping` | 健康检查 |
-| `dc_info` | 版本、监听地址、Docker daemon 真实连通性、备份目录、MCP 鉴权状态 |
+| `dt_ping` | 健康检查 |
+| `dt_info` | 版本、监听地址、Docker daemon 真实连通性、备份目录、MCP 鉴权状态 |
 
 ### 容器
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dc_list_containers` | - | 列出全部容器（含已停止），带 `haveUpdate` / `isCompose` 标记 |
-| `dc_inspect_container` | `containerId` | 单容器完整 inspect |
-| `dc_start_container` | `containerId` | 启动 |
-| `dc_stop_container` | `containerId` | 停止（SIGTERM，10s 宽限） |
-| `dc_restart_container` | `containerId` | 重启 |
-| `dc_rename_container` | `containerId`, `newName` | 重命名 |
-| `dc_update_container` | `containerId`, `containerName`, `image?`, `delOldContainer?` | 一键更新，全链路回滚；`image` 不传或留空时使用容器当前镜像 |
-| `dc_autoupdate_run` | - | 手动触发一轮自动更新；**前置条件**：`AUTOUPDATE_CRON` 与 `AUTOUPDATE_WHITELIST` 均已配置，否则报错 |
+| `dt_list_containers` | - | 列出全部容器（含已停止），带 `haveUpdate` / `isCompose` 标记 |
+| `dt_inspect_container` | `containerId` | 单容器完整 inspect |
+| `dt_start_container` | `containerId` | 启动 |
+| `dt_stop_container` | `containerId` | 停止（SIGTERM，10s 宽限） |
+| `dt_restart_container` | `containerId` | 重启 |
+| `dt_rename_container` | `containerId`, `newName` | 重命名 |
+| `dt_update_container` | `containerId`, `containerName`, `image?`, `delOldContainer?` | 一键更新，全链路回滚；`image` 不传或留空时使用容器当前镜像 |
+| `dt_autoupdate_run` | - | 手动触发一轮自动更新；**前置条件**：`AUTOUPDATE_CRON` 与 `AUTOUPDATE_WHITELIST` 均已配置，否则报错 |
 
 ### 镜像
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dc_list_images` | - | 本地镜像列表 |
-| `dc_check_image_update` | - | 立即做一次远端 digest 检查并返回结果 |
-| `dc_remove_image` | `imageId`, `force?` | 删除镜像 |
-| `dc_clean_images` | `filter` | 批量清理：`untagged` 删除无 TAG 镜像，`unused` 删除未使用镜像；返回 `removed` / `failed` 明细 |
+| `dt_list_images` | - | 本地镜像列表 |
+| `dt_check_image_update` | - | 立即做一次远端 digest 检查并返回结果 |
+| `dt_remove_image` | `imageId`, `force?` | 删除镜像 |
+| `dt_clean_images` | `filter` | 批量清理：`untagged` 删除无 TAG 镜像，`unused` 删除未使用镜像；返回 `removed` / `failed` 明细 |
 
 ### 备份 / 恢复
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dc_backup_containers` | - | 备份为 JSON |
-| `dc_backup_compose` | - | 导出 docker-compose YAML |
-| `dc_list_backups` | - | 备份文件列表 |
-| `dc_restore_container` | `filename`, `start?`, `force?` | 从 JSON 备份恢复；`force` 走“改名旧容器→新建→成功后删旧容器”，失败回滚 |
-| `dc_delete_backup` | `filename` | 删除备份文件（不动容器） |
+| `dt_backup_containers` | - | 备份为 JSON |
+| `dt_backup_compose` | - | 导出 docker-compose YAML |
+| `dt_list_backups` | - | 备份文件列表 |
+| `dt_restore_container` | `filename`, `start?`, `force?` | 从 JSON 备份恢复；`force` 走“改名旧容器→新建→成功后删旧容器”，失败回滚 |
+| `dt_delete_backup` | `filename` | 删除备份文件（不动容器） |
 
 ### 进度
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dc_list_progress` | - | 全部任务（含重启恢复的历史任务） |
-| `dc_get_progress` | `taskId` | 单任务进度 |
-| `dc_cancel_progress` | `taskId` | 取消任务（步骤边界生效） |
+| `dt_list_progress` | - | 全部任务（含重启恢复的历史任务） |
+| `dt_get_progress` | `taskId` | 单任务进度 |
+| `dt_cancel_progress` | `taskId` | 取消任务（步骤边界生效） |
 
 ### 设置 / 版本
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dc_get_settings` | - | 当前与生效的备份目录 |
-| `dc_update_settings` | `backupDir` | 修改备份目录（绝对路径 + 可写校验） |
-| `dc_get_version` | - | 本地版本与构建时间 |
-| `dc_check_program_update` | - | 检查程序新版本；FnOS 版本返回 `fnos=true` 与提示（不走通用更新链） |
-| `dc_update_program` | - | 自更新并重启（会中断当前服务）；FnOS 版本会明确拒绝 |
+| `dt_get_settings` | - | 当前与生效的备份目录 |
+| `dt_update_settings` | `backupDir` | 修改备份目录（绝对路径 + 可写校验） |
+| `dt_get_version` | - | 本地版本与构建时间 |
+| `dt_check_program_update` | - | 检查程序新版本；FnOS 版本返回 `fnos=true` 与提示（不走通用更新链） |
+| `dt_update_program` | - | 自更新并重启（会中断当前服务）；FnOS 版本会明确拒绝 |
 
 ## 5. 与 HTTP API 的对应关系
 
 MCP 工具直接复用 `internal/logic` 与 `internal/utiles` 的实现，与 HTTP API 共享同一套
 锁、进度、审计与回滚逻辑，因此两条通道行为一致。
 
-- 更新容器：`dc_update_container` ↔ `POST /api/container/:id/update`
-- 恢复容器：`dc_restore_container` ↔ `POST /api/container/backups/restore`
-- 进度：`dc_list_progress` ↔ `GET /api/progress`
+- 更新容器：`dt_update_container` ↔ `POST /api/container/:id/update`
+- 恢复容器：`dt_restore_container` ↔ `POST /api/container/backups/restore`
+- 进度：`dt_list_progress` ↔ `GET /api/progress`
 
 ## 6. 自检
 

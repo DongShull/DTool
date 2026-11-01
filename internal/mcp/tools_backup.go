@@ -8,12 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/utiles"
 )
 
 func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
-	s.AddTool(mcp.NewTool("dc_backup_containers",
+	s.AddTool(mcp.NewTool("dt_backup_containers",
 		mcp.WithDescription("备份全部容器配置为 JSON 文件，写入生效的备份目录（BACKUP_DIR > 设置 > /data/backups）；单个容器失败不中止整体备份，失败清单在返回的 failures 中"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		failures, backupErr := utiles.BackupContainer(ctx)
@@ -32,7 +32,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return jsonResult(result), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_backup_compose",
+	s.AddTool(mcp.NewTool("dt_backup_compose",
 		mcp.WithDescription("把容器配置导出为 docker-compose YAML 备份"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if err := utiles.Backup2Compose(ctx); err != nil {
@@ -42,7 +42,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return textResult("compose backup completed, dir=" + utiles.EffectiveBackupDir()), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_list_backups",
+	s.AddTool(mcp.NewTool("dt_list_backups",
 		mcp.WithDescription("列出备份目录下的 .json / .yaml 备份文件"),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		list, err := utiles.BackupList(ctx)
@@ -55,7 +55,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		}), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_restore_container",
+	s.AddTool(mcp.NewTool("dt_restore_container",
 		mcp.WithDescription("从 JSON 备份恢复容器；force=true 时同名容器会被替换（改名旧容器→创建新容器→成功后删除旧容器，失败自动回滚）"),
 		mcp.WithString("filename", mcp.Required(), mcp.Description("备份文件名（仅 .json）")),
 		mcp.WithBoolean("start", mcp.Description("是否启动；不传则按备份记录的状态恢复")),
@@ -99,7 +99,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		return jsonResult(final), nil
 	})
 
-	s.AddTool(mcp.NewTool("dc_delete_backup",
+	s.AddTool(mcp.NewTool("dt_delete_backup",
 		mcp.WithDescription("删除一个备份文件（只删备份文件，不动容器）"),
 		mcp.WithString("filename", mcp.Required(), mcp.Description("备份文件名")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

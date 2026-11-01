@@ -2,7 +2,7 @@ package utiles
 
 import (
 	"context"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/svc"
 )
 
 func RenameContainer(ctx *svc.ServiceContext, id string, newName string) error {

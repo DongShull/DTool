@@ -1,4 +1,4 @@
-module github.com/onlyLTY/dockerCopilot
+module github.com/DongShull/DTool
 
 go 1.23.0
 

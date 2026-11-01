@@ -9,12 +9,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/handler"
-	"github.com/onlyLTY/dockerCopilot/internal/mcp"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
-	"github.com/onlyLTY/dockerCopilot/internal/types"
-	"github.com/onlyLTY/dockerCopilot/internal/utiles"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/handler"
+	"github.com/DongShull/DTool/internal/mcp"
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/types"
+	"github.com/DongShull/DTool/internal/utiles"
 	"github.com/robfig/cron/v3"
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -24,7 +24,7 @@ import (
 	xhttp "github.com/zeromicro/x/http"
 )
 
-var configFile = flag.String("f", "etc/dockerCopilot.yaml", "the config file")
+var configFile = flag.String("f", "etc/dtool.yaml", "the config file")
 
 type UnauthorizedResponse struct {
 	Code int                    `json:"code"`

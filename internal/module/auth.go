@@ -14,7 +14,7 @@ import (
 	"time"
 
 	ref "github.com/distribution/reference"
-	"github.com/onlyLTY/dockerCopilot/internal/types"
+	"github.com/DongShull/DTool/internal/types"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -111,7 +111,7 @@ func GetChallengeRequest(URL url.URL) (*http.Request, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("User-Agent", "dockerCopilot")
+	req.Header.Set("User-Agent", "DTool")
 	return req, nil
 }
 

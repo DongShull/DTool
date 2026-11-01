@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/onlyLTY/dockerCopilot/internal/config"
-	"github.com/onlyLTY/dockerCopilot/internal/svc"
+	"github.com/DongShull/DTool/internal/config"
+	"github.com/DongShull/DTool/internal/svc"
 )
 
 func testContext() *svc.ServiceContext {
@@ -22,14 +22,14 @@ func testContext() *svc.ServiceContext {
 }
 
 var expectedTools = []string{
-	"dc_ping", "dc_info",
-	"dc_list_containers", "dc_inspect_container", "dc_start_container", "dc_stop_container",
-	"dc_restart_container", "dc_rename_container", "dc_update_container", "dc_autoupdate_run",
-	"dc_list_images", "dc_check_image_update", "dc_remove_image", "dc_clean_images",
-	"dc_backup_containers", "dc_backup_compose", "dc_list_backups", "dc_restore_container", "dc_delete_backup",
-	"dc_list_progress", "dc_get_progress", "dc_cancel_progress",
-	"dc_get_settings", "dc_update_settings",
-	"dc_get_version", "dc_check_program_update", "dc_update_program",
+	"dt_ping", "dt_info",
+	"dt_list_containers", "dt_inspect_container", "dt_start_container", "dt_stop_container",
+	"dt_restart_container", "dt_rename_container", "dt_update_container", "dt_autoupdate_run",
+	"dt_list_images", "dt_check_image_update", "dt_remove_image", "dt_clean_images",
+	"dt_backup_containers", "dt_backup_compose", "dt_list_backups", "dt_restore_container", "dt_delete_backup",
+	"dt_list_progress", "dt_get_progress", "dt_cancel_progress",
+	"dt_get_settings", "dt_update_settings",
+	"dt_get_version", "dt_check_program_update", "dt_update_program",
 }
 
 func TestAllToolsRegistered(t *testing.T) {
