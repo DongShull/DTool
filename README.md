@@ -67,6 +67,7 @@ services:
 | `BACKUP_KEEP` | 7 | 每种备份（JSON / compose）保留份数，超出自动清理最旧的 |
 | `DelOldContainer` | true | 更新成功后删除旧容器（设为 `false` 保留） |
 | `CLEANUP_OLD_IMAGE` | true | 更新成功后清理不再被引用的旧镜像（`false` 关闭） |
+| `COMPOSE_UPDATE` | auto | Compose 容器更新策略：`auto`（默认，能用 compose 就用，失败回退容器方式）/ `force`（up 加 --force-recreate，latest 场景每次必重建，服务闪断一次）/ `container`（永远按容器方式）/ `compose-only`（compose 失败不兜底） |
 | `UPDATE_REPO` | DongShull/DTool | 版本检查与自更新仓库 |
 | `UPDATE_BRANCH` | latest | 版本检查分支 |
 | `UPDATE_SKIP_CHECKSUM` | false | 设为 `true` 时跳过自更新 SHA256 校验（仅用于过渡旧版本，不推荐） |
@@ -106,6 +107,7 @@ services:
 
 ## 已知限制
 
+- **latest 标签的 compose 重建依赖 pull 结果**：`COMPOSE_UPDATE=auto` 时 compose 按镜像 ID 对比决定是否重建，digest 检查漏报会导致不重建；对一致性要求高用 `COMPOSE_UPDATE=force`（每次触发必重建，服务闪断一次）。
 - **私有仓库镜像无法自动检查更新**：程序不持有任何 registry 凭证，私有镜像的 digest 检查会静默跳过（日志可见），`haveUpdate` 恒为 false。
 - **FnOS 版不走在线更新链**：`/api/version?type=remote` 与 `dt_check_program_update` 会返回 `fnos=true` 与提示，自更新被明确禁止；请使用 FNOS 专用发布包更新。
 - **自更新历史不计 FNOS 拒绝**：FNOS 版本触发自更新会被立即拒绝且不写入更新历史（那不是更新失败，是配置约束）。

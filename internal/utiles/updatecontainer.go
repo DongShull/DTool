@@ -101,8 +101,39 @@ func UpdateContainer(serviceContext *svc.ServiceContext, ctx context.Context, id
 	renamed := false
 	newCreated := false
 	var warnings []string
-	if inspectedContainer.Config.Labels["com.docker.compose.project"] != "" {
-		warnings = append(warnings, "该容器由 Compose 管理，本次按容器方式重建；建议优先使用 docker compose pull/up 更新")
+	isCompose := inspectedContainer.Config.Labels["com.docker.compose.project"] != ""
+	if isCompose {
+		warnings = append(warnings, "该容器由 Compose 管理，本次按容器方式重建；建议优先使用 compose 更新链路")
+	}
+
+	// ---- Compose 链路由：标签齐全且可用时优先走 compose pull/up，
+	// 失败或不可用时回退到下方的容器链路兑底 ----
+	if strategy := ComposeUpdateStrategy(); isCompose && strategy != ComposeStrategyContainer {
+		progress(10, "正在检查 Compose 可用性", "尝试以 compose 方式更新", false)
+		completed, composeOut, composeErr := tryComposeUpdate(ctx, serviceContext, &inspectedContainer, oldContainerName, taskID)
+		if completed {
+			if composeErr != nil {
+				progress(100, "Compose 更新失败", composeErr.Error(), true)
+				return composeErr
+			}
+			// compose up -d 成功后观察新容器是否稳定/健康，复用容器链路的健康等待。
+			if wasRunning && !wasPaused {
+				progress(92, "正在等待容器健康", "正在等待新容器通过健康检查", false)
+				if healthErr := waitForContainerHealthy(ctx, serviceContext, oldContainerName, inspectedContainer.Config.Healthcheck); healthErr != nil {
+					detail := composeOut + "；健康检查失败: " + healthErr.Error()
+					progress(100, "Compose 更新完成但容器未通过健康检查", detail, true)
+					return healthErr
+				}
+			}
+			detail := "已由 compose 更新"
+			if composeOut != "" {
+				detail += "\n" + composeOut
+			}
+			progress(100, "更新成功（compose）", detail, true)
+			return nil
+		}
+		// 未走完 compose 链路：原因记入警告，继续容器链路兑底。
+		warnings = append(warnings, composeOut)
 	}
 
 	// rollback 只恢复本流程真正改过名的旧容器；原本停止的容器不会被误启动。

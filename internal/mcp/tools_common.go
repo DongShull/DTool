@@ -54,6 +54,13 @@ func registerCommonTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 				info["dockerOSType"] = pingResp.OSType
 			}
 		}
+		// Compose 更新能力：让 Agent 提前知道 compose 链路是否可用、当前策略。
+		if _, ok := utiles.ComposeCommandPublic(); ok {
+			info["composeReady"] = true
+		} else {
+			info["composeReady"] = false
+		}
+		info["composeUpdateStrategy"] = utiles.ComposeUpdateStrategy()
 		if ctx.DockerInitErr != nil {
 			info["dockerInitErr"] = ctx.DockerInitErr.Error()
 		}

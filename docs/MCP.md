@@ -82,7 +82,7 @@ environment:
 | 工具 | 说明 |
 |---|---|
 | `dt_ping` | 健康检查 |
-| `dt_info` | 版本、监听地址、Docker daemon 真实连通性、备份目录、MCP 鉴权状态 |
+| `dt_info` | 版本、监听地址、Docker daemon 真实连通性、备份目录、MCP 鉴权状态、compose 更新能力（composeReady + 当前策略） |
 
 ### 容器
 
