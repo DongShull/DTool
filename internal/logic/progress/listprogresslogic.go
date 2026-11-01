@@ -23,10 +23,10 @@ func NewListProgressLogic(ctx context.Context, svcCtx *svc.ServiceContext) *List
 	}
 }
 
-func (l *ListProgressLogic) ListProgress() (resp *types.Resp, err error) {
+func (l *ListProgressLogic) ListProgress(req *types.ListProgressReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
 	resp.Code = 200
 	resp.Msg = "success"
-	resp.Data = l.svcCtx.ListProgress()
+	resp.Data = l.svcCtx.FilterProgress(req.Status, req.Name)
 	return resp, nil
 }

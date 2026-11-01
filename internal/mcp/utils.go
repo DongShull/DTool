@@ -58,6 +58,31 @@ func optionalString(args map[string]any, key string) string {
 	return s
 }
 
+// optionalInt64 读取数值参数；缺失或类型不符返回 0（表示未设置）。
+// 浮点数会被截断为整数（MCP 客户端常把整数序列化成浮点）。
+func optionalInt64(args map[string]any, key string) int64 {
+	v, ok := args[key]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0
+		}
+		return i
+	default:
+		return 0
+	}
+}
+
 // optionalStringMap 把 MCP 参数里的字符串映射（JSON object）转成 map[string]string。
 // 客户端可能传 map 或 JSON 字符串两种形态，都兼容；非字符串值会报错而不是静默丢弃。
 func optionalStringMap(raw any) (map[string]string, error) {

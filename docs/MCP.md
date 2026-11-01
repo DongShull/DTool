@@ -75,7 +75,7 @@ environment:
 
 ## 4. 工具清单
 
-共 28 个工具，命名统一以 `dt_` 开头。
+共 29 个工具，命名统一以 `dt_` 开头。
 
 ### 通用
 
@@ -121,7 +121,8 @@ environment:
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dt_list_progress` | - | 全部任务（含重启恢复的历史任务） |
+| `dt_list_progress` | `status?`, `name?` | 任务列表；可按状态（running/cancelled/done）与任务名子串过滤；被取消的任务带 `cancelled` 标记 |
+| `dt_export_progress` | `status?`, `name?`, `from?`, `to?` | 导出进度为 JSON：含按状态汇总与任务清单，from/to 为 Unix 秒时间范围 |
 | `dt_get_progress` | `taskId` | 单任务进度 |
 | `dt_cancel_progress` | `taskId` | 取消任务（步骤边界生效） |
 

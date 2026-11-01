@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,9 +45,37 @@ type TaskProgress struct {
 	IsDone     bool   `json:"isDone"`
 	StartedAt  int64  `json:"startedAt"`
 	FinishedAt int64  `json:"finishedAt"`
+	// Cancelled 为 true 表示任务是被主动取消而结束的（区别于失败/成功）。
+	// 由 CancelActiveTask 标记；进行中的任务恒为 false。
+	Cancelled bool `json:"cancelled,omitempty"`
+	// CancelRequestedAt 记录发出取消请求的时间（Unix 秒）；未取消为 0。
+	CancelRequestedAt int64 `json:"cancelRequestedAt,omitempty"`
+}
+
+// Status 返回任务的归一化状态：running / cancelled / done。
+// 取消的任务单列一类，与“正常完成”区分开，供状态筛选使用。
+func (p TaskProgress) Status() string {
+	if !p.IsDone {
+		return "running"
+	}
+	if p.Cancelled {
+		return "cancelled"
+	}
+	return "done"
 }
 
 type ProgressStoreType map[string]TaskProgress
+
+// isCancelledMessage 判断进度消息是否表示任务被取消。
+// 只匹配任务代码里实际使用的取消文案，避免误伤“取消xx失败”这类失败信息。
+func isCancelledMessage(message, detailMsg string) bool {
+	for _, s := range []string{message, detailMsg} {
+		if strings.Contains(s, "任务已取消") || strings.Contains(s, "已取消恢复") || strings.Contains(s, "进程重启，任务已中断") {
+			return true
+		}
+	}
+	return false
+}
 
 func NewServiceContext(c config.Config) *ServiceContext {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -97,6 +126,14 @@ func (ctx *ServiceContext) loadProgress() {
 			v.Message = "进程重启，任务已中断"
 			v.DetailMsg = "任务执行期间服务重启，请重新发起"
 			interrupted = true
+		}
+		// 磁盘上的历史数据可能没有 Cancelled 字段（旧版本写入或
+		// 取消发生在上一进程），按取消文案统一补齐，保证状态筛选一致。
+		if !v.Cancelled && isCancelledMessage(v.Message, v.DetailMsg) {
+			v.Cancelled = true
+			if v.CancelRequestedAt == 0 {
+				v.CancelRequestedAt = v.FinishedAt
+			}
 		}
 		ctx.ProgressStore[k] = v
 	}
@@ -186,6 +223,19 @@ func (ctx *ServiceContext) UpdateProgress(taskID string, progress TaskProgress) 
 			progress.FinishedAt = now
 		}
 	}
+	// 取消状态补齐：任务各执行点报“任务已取消”时，这里统一标记 Cancelled，
+	// 避免在每个调用点都重复维护；保留已有的 CancelRequestedAt（取消发起时间）。
+	if !progress.Cancelled && progress.IsDone && isCancelledMessage(progress.Message, progress.DetailMsg) {
+		progress.Cancelled = true
+		if progress.CancelRequestedAt == 0 {
+			if old, ok := ctx.ProgressStore[taskID]; ok {
+				progress.CancelRequestedAt = old.CancelRequestedAt
+			}
+			if progress.CancelRequestedAt == 0 {
+				progress.CancelRequestedAt = progress.FinishedAt
+			}
+		}
+	}
 	ctx.ProgressStore[taskID] = progress
 	// 高频拉取进度只留在内存；最多每秒落盘一次，完成时立即落盘。
 	shouldSave := progress.IsDone || time.Since(ctx.lastProgressSave) >= time.Second
@@ -207,10 +257,26 @@ func (ctx *ServiceContext) GetProgress(taskID string) (TaskProgress, bool) {
 
 // ListProgress 返回全部任务进度，按开始时间倒序。
 func (ctx *ServiceContext) ListProgress() []TaskProgress {
+	return ctx.FilterProgress("", "")
+}
+
+// FilterProgress 按状态与名称过滤任务进度，按开始时间倒序。
+// status 为空返回全部；有效值：running / cancelled / done（非法值视为全部）。
+// name 非空时按任务名（不区分大小写）子串匹配。
+func (ctx *ServiceContext) FilterProgress(status, name string) []TaskProgress {
 	ctx.mu.Lock()
 	defer ctx.mu.Unlock()
+	status = strings.ToLower(strings.TrimSpace(status))
+	name = strings.ToLower(strings.TrimSpace(name))
+	validStatus := status == "running" || status == "cancelled" || status == "done"
 	list := make([]TaskProgress, 0, len(ctx.ProgressStore))
 	for _, v := range ctx.ProgressStore {
+		if validStatus && v.Status() != status {
+			continue
+		}
+		if name != "" && !strings.Contains(strings.ToLower(v.Name), name) {
+			continue
+		}
 		list = append(list, v)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -265,6 +331,8 @@ func (ctx *ServiceContext) CancelActiveTask(taskID string) (ok bool, msg string)
 	cancel()
 	progress.Message = "正在取消..."
 	progress.DetailMsg = "已发出取消请求，任务将在当前步骤结束后停止"
+	progress.Cancelled = true
+	progress.CancelRequestedAt = time.Now().Unix()
 	ctx.ProgressStore[taskID] = progress
 	ctx.mu.Unlock()
 	ctx.saveProgress()

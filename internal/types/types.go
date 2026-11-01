@@ -53,6 +53,22 @@ type GetProgressReq struct {
 	TaskId string `path:"taskid"`
 }
 
+// ListProgressReq 任务进度列表的过滤条件。
+// status：running / cancelled / done，为空返回全部；
+// name：按任务名子串匹配（不区分大小写）。
+type ListProgressReq struct {
+	Status string `form:"status,optional"`
+	Name   string `form:"name,optional"`
+}
+
+// ExportProgressReq 进度导出条件：与列表过滤一致，另支持时间范围（Unix 秒）。
+type ExportProgressReq struct {
+	Status string `form:"status,optional"`
+	Name   string `form:"name,optional"`
+	From   int64  `form:"from,optional"`
+	To     int64  `form:"to,optional"`
+}
+
 type IdReq struct {
 	Id string `path:"id"`
 }

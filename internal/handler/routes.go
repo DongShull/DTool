@@ -156,6 +156,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodGet,
+				Path:    "/progress/export",
+				Handler: progress.ExportProgressHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
 				Path:    "/progress/:taskid",
 				Handler: progress.GetProgressHandler(serverCtx),
 			},

@@ -61,7 +61,7 @@ echo
 echo "== MCP =="
 if [ -d internal/mcp ]; then
   TOOL_COUNT=$(grep -rho 'NewTool("dt_[a-z_]*"' internal/mcp/*.go | sort -u | wc -l | tr -d ' ')
-  echo "internal/mcp 工具数: ${TOOL_COUNT}（期望 28）"
+  echo "internal/mcp 工具数: ${TOOL_COUNT}（期望 29）"
   if [ "$TOOL_COUNT" -eq 0 ]; then
     echo "警告: 未发现 dt_* 工具注册"
   fi
