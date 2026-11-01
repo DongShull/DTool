@@ -26,7 +26,7 @@
 12. 定时自动更新白名单
 13. 操作审计日志与 webhook 通知
 14. 内置 MCP 服务（Streamable HTTP），Agent 可直接调用全部能力；HTTP API 同时保留
-15. 程序自更新（下载 + SHA256 校验；新版连续启动失败自动回退上一版）
+15. 程序自更新（下载 + SHA256 校验；新版连续启动失败自动回退上一版；支持 `target` 强制更新到指定版本允许降级；更新历史可查 `GET /api/program/history` / MCP `dt_get_update_history`；失败自动发 webhook 通知；`UPDATE_PROGRAM_ENABLED=false` 可整体禁用）
 
 ## 使用
 
@@ -74,7 +74,9 @@ services:
 | `REGISTRY_INSECURE` | false | 设为 `true` 时 registry 检测跳过 TLS 校验（默认严格校验） |
 | `PROGRESS_STORE` | /data/config/progress.json | 任务进度持久化文件 |
 | `PROGRESS_TTL_HOURS` | 24 | 已完成任务保留小时数，超期自动清理 |
-| `NOTIFY_WEBHOOK_URL` | 空 | 任务完成通知 webhook（POST JSON） |
+| `NOTIFY_WEBHOOK_URL` | 空 | 任务完成通知 webhook（POST JSON）；自更新失败也会发（kind=program-update） |
+| `UPDATE_HISTORY` | /data/config/update-history.json | 自更新历史文件路径 |
+| `UPDATE_PROGRAM_ENABLED` | true | 设为 `false` 禁用手动自更新（交给系统包管理器管理的部署用） |
 | `AUDIT_LOG` | /data/logs/audit.jsonl | 审计日志（JSON Lines） |
 | `AUTOUPDATE_CRON` | 空 | 自动更新周期（cron 表达式，空=关闭），如 `0 4 * * *` |
 | `AUTOUPDATE_WHITELIST` | 空 | 自动更新容器白名单（逗号分隔；`*` 表示全部有更新的容器） |
@@ -84,7 +86,7 @@ services:
 
 ### MCP（推荐给 Agent）
 
-`http://<host>:12712/mcp`，Streamable HTTP，29 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
+`http://<host>:12712/mcp`，Streamable HTTP，30 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
 进度、设置与自更新。鉴权支持 `Authorization: Bearer <token>`、`X-MCP-Token` 与 `?token=`。
 详见 [docs/MCP.md](docs/MCP.md)。
 
@@ -106,6 +108,7 @@ services:
 
 - **私有仓库镜像无法自动检查更新**：程序不持有任何 registry 凭证，私有镜像的 digest 检查会静默跳过（日志可见），`haveUpdate` 恒为 false。
 - **FnOS 版不走在线更新链**：`/api/version?type=remote` 与 `dt_check_program_update` 会返回 `fnos=true` 与提示，自更新被明确禁止；请使用 FNOS 专用发布包更新。
+- **自更新历史不计 FNOS 拒绝**：FNOS 版本触发自更新会被立即拒绝且不写入更新历史（那不是更新失败，是配置约束）。
 - **自更新回滚依赖启动脚本**：`start.sh` 会在换入新版前保留 `DTool.bak`，新版连续 3 次启动失败（启动后 30 秒内退出）自动回退；重建容器也能回到镜像自带版本。
 
 ## 开发环境

@@ -45,12 +45,33 @@ func registerVersionTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 	})
 
 	s.AddTool(mcp.NewTool("dt_update_program",
-		mcp.WithDescription("更新 DTool 自身：下载新版本、校验、解压并重启进程（会中断当前服务）"),
+		mcp.WithDescription("更新 DTool 自身：下载新版本、校验、解压并重启进程（会中断当前服务）；target 不传更新到最新版，传了则强制更新到指定版本（允许降级，版本号只允许字母数字与 . - _ +）"),
+		mcp.WithString("target", mcp.Description("可选：目标版本号（如 v2.2.1）；不传更新到最新版")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if err := utiles.UpdateProgram(ctx); err != nil {
+		if utiles.UpdateProgramDisabled() {
+			return mcp.NewToolResultError(utiles.ErrUpdateProgramDisabled.Error()), nil
+		}
+		target := optionalString(req.GetArguments(), "target")
+		if target != "" {
+			if _, chkErr := utiles.SanitizeUpdateTarget(target); chkErr != nil {
+				return mcp.NewToolResultError(chkErr.Error()), nil
+			}
+		}
+		if err := utiles.UpdateProgram(ctx, utiles.UpdateOptions{Target: target, Manual: true}); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		utiles.AuditLog("program.update", "self", "program update triggered")
 		return textResult("program update triggered, service will restart"), nil
+	})
+
+	s.AddTool(mcp.NewTool("dt_get_update_history",
+		mcp.WithDescription("程序自更新历史：每次更新（成功或失败）一条记录，含前后版本、手动/自动、结果说明；最新在前"),
+		mcp.WithNumber("limit", mcp.Description("可选：最多返回条数；不传返回全部")),
+	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		limit := int(optionalInt64(req.GetArguments(), "limit"))
+		return jsonResult(map[string]any{
+			"currentVersion": config.Version,
+			"history":        utiles.UpdateHistory(limit),
+		}), nil
 	})
 }

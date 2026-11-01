@@ -29,7 +29,7 @@ var expectedTools = []string{
 	"dt_backup_containers", "dt_backup_compose", "dt_list_backups", "dt_compare_backups", "dt_restore_container", "dt_delete_backup",
 	"dt_list_progress", "dt_get_progress", "dt_cancel_progress", "dt_export_progress",
 	"dt_get_settings", "dt_update_settings",
-	"dt_get_version", "dt_check_program_update", "dt_update_program",
+	"dt_get_version", "dt_check_program_update", "dt_update_program", "dt_get_update_history",
 }
 
 func TestAllToolsRegistered(t *testing.T) {

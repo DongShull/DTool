@@ -218,6 +218,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/version",
 				Handler: version.VersionHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/program/history",
+				Handler: version.UpdateHistoryHandler(serverCtx),
+			},
 		},
 		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
 		rest.WithPrefix("/api"),

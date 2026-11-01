@@ -24,9 +24,30 @@ func NewUpdateProgramLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Upd
 	}
 }
 
-func (l *UpdateProgramLogic) UpdateProgram() (resp *types.Resp, err error) {
+func (l *UpdateProgramLogic) UpdateProgram(req *types.UpdateProgramReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
-	err = utiles.UpdateProgram(l.svcCtx)
+	if utiles.UpdateProgramDisabled() {
+		resp.Code = 403
+		resp.Msg = utiles.ErrUpdateProgramDisabled.Error()
+		resp.Data = map[string]interface{}{}
+		return resp, nil
+	}
+	target := ""
+	if req != nil {
+		target = req.Target
+	}
+	if target != "" {
+		if _, chkErr := utiles.SanitizeUpdateTarget(target); chkErr != nil {
+			resp.Code = 400
+			resp.Msg = chkErr.Error()
+			resp.Data = map[string]interface{}{}
+			return resp, nil
+		}
+	}
+	err = utiles.UpdateProgram(l.svcCtx, utiles.UpdateOptions{
+		Target: target,
+		Manual: true,
+	})
 	if err != nil {
 		resp.Code = 500
 		resp.Msg = err.Error()

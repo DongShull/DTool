@@ -142,3 +142,9 @@ type GetNewImageReq struct {
 type UpdateSettingsReq struct {
 	BackupDir string `json:"backupDir"`
 }
+
+// UpdateProgramReq 程序自更新请求。
+// Target 为空更新到最新版；非空时强制更新到指定版本（允许降级）。
+type UpdateProgramReq struct {
+	Target string `form:"target,optional"`
+}

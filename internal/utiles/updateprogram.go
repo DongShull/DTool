@@ -26,14 +26,52 @@ var updateProgramMu sync.Mutex
 // ErrUpdateProgramRunning 已有一轮自更新在执行时返回。
 var ErrUpdateProgramRunning = errors.New("已有一轮自更新在执行，请稍后再试")
 
-func UpdateProgram(ctx *svc.ServiceContext) error {
+// UpdateOptions 自更新的可选参数。
+type UpdateOptions struct {
+	// Target 为空时更新到远端 version 文件指向的最新版；
+	// 非空时强制更新到指定版本（允许跨版本、降级）。版本号经 SanitizeUpdateTarget 校验。
+	Target string
+	// Manual 手动触发（HTTP/MCP）；自动更新传 false，用于历史记录区分。
+	Manual bool
+}
+
+// UpdateProgram 执行一轮程序自更新：检查远端版本 → 下载 → SHA256 校验 → 解压换入。
+// 任一步失败都会记录失败历史并发送失败通知（如已配置 webhook）。
+func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
+	fromVersion := config.Version
+	targetVersion := ""
+	defer func() {
+		// 统一记录更新历史：成功失败都记，手动/自动区分；失败时额外发通知。
+		AppendUpdateHistory(UpdateHistoryEntry{
+			FromVersion: fromVersion,
+			ToVersion:   targetVersion,
+			OK:          err == nil,
+			Manual:      opts.Manual,
+			Message:     updateResultMessage(err),
+		})
+		if err != nil && strings.Contains(err.Error(), "FNOS") {
+			// FNOS 的拒绝属于配置约束，不算更新失败，不进历史不发通知。
+			RemoveLastUpdateHistory()
+			return
+		}
+		if err != nil {
+			NotifyTaskDone("program-update", fromVersion, "", false, "程序自更新失败: "+err.Error())
+		}
+	}()
 	if !updateProgramMu.TryLock() {
 		return ErrUpdateProgramRunning
 	}
 	defer updateProgramMu.Unlock()
 
-	if strings.Contains(config.Version, "FNOS") {
+	if strings.Contains(config.Version, "FNOS") || strings.Contains(opts.Target, "FNOS") {
 		return fmt.Errorf("飞牛版本请使用 FNOS 专用发布包更新，禁止覆盖为通用版")
+	}
+	if opts.Target != "" {
+		v, sanitizeErr := SanitizeUpdateTarget(opts.Target)
+		if sanitizeErr != nil {
+			return sanitizeErr
+		}
+		targetVersion = v
 	}
 	githubProxy := os.Getenv("githubProxy")
 	if githubProxy != "" {
@@ -41,32 +79,41 @@ func UpdateProgram(ctx *svc.ServiceContext) error {
 	}
 	versionURL := githubProxy + "https://raw.githubusercontent.com/" + UpdateRepo() + "/" + UpdateBranch() + "/version"
 	releaseBaseURL := githubProxy + "https://github.com/" + UpdateRepo() + "/releases/download"
-	logx.Infof("版本检查地址: %s", versionURL)
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Get(versionURL)
-	if err != nil {
-		logx.Info("没有获取到最新版本信息:", err)
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+	version := targetVersion
+	if version == "" {
+		// 未指定目标版本：按远端 version 文件更新到最新。
+		logx.Infof("版本检查地址: %s", versionURL)
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, err := client.Get(versionURL)
 		if err != nil {
-			logx.Error("关闭resp.Body失败:", err)
+			logx.Info("没有获取到最新版本信息:", err)
+			return err
 		}
-	}(resp.Body)
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				logx.Error("关闭resp.Body失败:", err)
+			}
+		}(resp.Body)
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("获取版本信息失败: HTTP %s", resp.Status)
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("获取版本信息失败: HTTP %s", resp.Status)
+		}
+		versionData, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		logx.Infof("远端版本文件内容: %s", versionData)
+		if err != nil {
+			logx.Info("没有获取到最新版本信息:", err)
+			return err
+		}
+		version = strings.TrimSpace(string(versionData))
+		if v, sanitizeErr := SanitizeUpdateTarget(version); sanitizeErr != nil {
+			return fmt.Errorf("远端版本号非法: %w", sanitizeErr)
+		} else {
+			version = v
+		}
+		targetVersion = version
 	}
-	versionData, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	logx.Infof("远端版本文件内容: %s", versionData)
-	if err != nil {
-		logx.Info("没有获取到最新版本信息:", err)
-		return err
-	}
-
-	version := strings.TrimSpace(string(versionData))
-	logx.Info("获取到最新版本：", version)
+	logx.Info("目标版本：", version, "（当前 ", fromVersion, "）")
 	// 2. 构造下载链接
 	downloadURL := fmt.Sprintf("%s/%s/DTool-%s.tar.gz", releaseBaseURL, version, runtime.GOARCH)
 	logx.Info("下载链接：", downloadURL)

@@ -75,7 +75,7 @@ environment:
 
 ## 4. 工具清单
 
-共 29 个工具，命名统一以 `dt_` 开头。
+共 30 个工具，命名统一以 `dt_` 开头。
 
 ### 通用
 
@@ -134,7 +134,8 @@ environment:
 | `dt_update_settings` | `backupDir` | 修改备份目录（绝对路径 + 可写校验） |
 | `dt_get_version` | - | 本地版本与构建时间 |
 | `dt_check_program_update` | - | 检查程序新版本；FnOS 版本返回 `fnos=true` 与提示（不走通用更新链） |
-| `dt_update_program` | - | 自更新并重启（会中断当前服务）；FnOS 版本会明确拒绝 |
+| `dt_update_program` | `target?` | 自更新并重启（会中断当前服务）；`target` 可强制更新到指定版本（允许降级）；FnOS 版本会明确拒绝 |
+| `dt_get_update_history` | `limit?` | 自更新历史：每次更新（成功/失败）一条，含前后版本、手动/自动、结果说明，最新在前 |
 
 ## 5. 与 HTTP API 的对应关系
 

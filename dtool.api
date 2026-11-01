@@ -216,7 +216,10 @@ service DTool {
 		get /version (VersionReq) returns (Resp)
 
 	@handler updateProgram
-		put /program returns (Resp)
+		put /program (UpdateProgramReq) returns (Resp)
+
+	@handler updateHistory
+		get /program/history returns (Resp)
 }
 
 @server(
