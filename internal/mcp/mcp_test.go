@@ -26,7 +26,7 @@ var expectedTools = []string{
 	"dt_list_containers", "dt_inspect_container", "dt_start_container", "dt_stop_container",
 	"dt_restart_container", "dt_rename_container", "dt_update_container", "dt_autoupdate_run",
 	"dt_list_images", "dt_check_image_update", "dt_remove_image", "dt_clean_images",
-	"dt_backup_containers", "dt_backup_compose", "dt_list_backups", "dt_restore_container", "dt_delete_backup",
+	"dt_backup_containers", "dt_backup_compose", "dt_list_backups", "dt_compare_backups", "dt_restore_container", "dt_delete_backup",
 	"dt_list_progress", "dt_get_progress", "dt_cancel_progress",
 	"dt_get_settings", "dt_update_settings",
 	"dt_get_version", "dt_check_program_update", "dt_update_program",

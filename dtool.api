@@ -62,6 +62,16 @@ type ContainerRestoreReq {
 	Filename string `json:"filename"`
 	Start    *bool  `json:"start,optional"`
 	Force    bool   `json:"force,optional"`
+	NameMap  map[string]string `json:"nameMap,optional"`
+}
+
+type BackupContainersReq {
+	Include []string `form:"include,optional"`
+}
+
+type BackupCompareReq {
+	Old string `form:"old"`
+	New string `form:"new"`
 }
 
 type DelContainerBackupReq {
@@ -154,17 +164,17 @@ service DTool {
 	@handler update
 	post /container/:id/update (ContainerUpdateReq) returns (Resp)
 
-	@handler backup
-	get /container/backup returns (Resp)
-
-	@handler backup2compose
-	get /container/backup2compose returns (Resp)
-
 	@handler listBackups
 	get /container/listBackups returns (Resp)
 
+	@handler compareBackups
+	get /container/backups/compare (BackupCompareReq) returns (Resp)
+
 	@handler restore
 		post /container/backups/restore (ContainerRestoreReq) returns (Resp)
+
+	@handler backup
+	get /container/backup (BackupContainersReq) returns (Resp)
 
 	@handler delRestore
 		delete /container/backups (DelContainerBackupReq) returns (Resp)

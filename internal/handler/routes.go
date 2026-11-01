@@ -94,6 +94,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodGet,
+				Path:    "/container/backups/compare",
+				Handler: container.CompareBackupsHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
 				Path:    "/containers",
 				Handler: container.ContainersListHandler(serverCtx),
 			},

@@ -19,12 +19,14 @@
 5. 批量删除无 TAG 镜像（`DELETE /api/images?filter=untagged` / MCP `dt_clean_images`）
 6. 批量删除未使用镜像（`DELETE /api/images?filter=unused` / MCP `dt_clean_images`）
 7. 更新进度查看（SSE 实时推送 / 轮询双通道，支持取消，重启不丢历史）
-8. 备份容器设置（JSON / docker-compose 双格式；每次备份独立文件，超出 `BACKUP_KEEP` 自动清理）
-9. 恢复容器设置
-10. 定时自动更新白名单
-11. 操作审计日志与 webhook 通知
-12. 内置 MCP 服务（Streamable HTTP），Agent 可直接调用全部能力；HTTP API 同时保留
-13. 程序自更新（下载 + SHA256 校验；新版连续启动失败自动回退上一版）
+8. 备份容器设置（JSON / docker-compose 双格式；每次备份独立文件，超出 `BACKUP_KEEP` 自动清理；支持 `include` 只备份指定容器）
+9. 恢复容器设置（支持 `nameMap` 把备份里的容器重定向到新名字恢复，不动原容器）
+10. 备份对比（`GET /api/container/backups/compare?old=&new=` / MCP `dt_compare_backups`：新增、移除、镜像/环境/挂载/端口/网络变化一目了然）
+10. 备份对比（`GET /api/container/backups/compare?old=&new=` / MCP `dt_compare_backups`：新增、移除、镜像/环境/挂载/端口/网络变化一目了然）
+11. 定时自动更新白名单
+12. 操作审计日志与 webhook 通知
+13. 内置 MCP 服务（Streamable HTTP），Agent 可直接调用全部能力；HTTP API 同时保留
+14. 程序自更新（下载 + SHA256 校验；新版连续启动失败自动回退上一版）
 
 ## 使用
 
@@ -82,7 +84,7 @@ services:
 
 ### MCP（推荐给 Agent）
 
-`http://<host>:12712/mcp`，Streamable HTTP，27 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
+`http://<host>:12712/mcp`，Streamable HTTP，28 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
 进度、设置与自更新。鉴权支持 `Authorization: Bearer <token>`、`X-MCP-Token` 与 `?token=`。
 详见 [docs/MCP.md](docs/MCP.md)。
 

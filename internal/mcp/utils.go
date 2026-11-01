@@ -57,3 +57,30 @@ func optionalString(args map[string]any, key string) string {
 	}
 	return s
 }
+
+// optionalStringMap 把 MCP 参数里的字符串映射（JSON object）转成 map[string]string。
+// 客户端可能传 map 或 JSON 字符串两种形态，都兼容；非字符串值会报错而不是静默丢弃。
+func optionalStringMap(raw any) (map[string]string, error) {
+	switch v := raw.(type) {
+	case map[string]string:
+		return v, nil
+	case map[string]any:
+		out := make(map[string]string, len(v))
+		for k, item := range v {
+			s, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("键 %q 的值必须是字符串", k)
+			}
+			out[k] = s
+		}
+		return out, nil
+	case string:
+		var out map[string]string
+		if err := json.Unmarshal([]byte(v), &out); err != nil {
+			return nil, fmt.Errorf("nameMap 不是合法的字符串映射: %w", err)
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("nameMap 必须是对象或 JSON 字符串")
+	}
+}

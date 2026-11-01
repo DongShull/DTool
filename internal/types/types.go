@@ -18,6 +18,9 @@ type ContainerRestoreReq struct {
 	Start *bool `json:"start,optional"`
 	// Force 为 true 时，同名容器会被删除后重建；默认跳过同名容器。
 	Force bool `json:"force,optional"`
+	// NameMap 为空时按备份里的容器名恢复；非空时把备份里的容器名重定向到
+	// 指定名字恢复（不改原名），键为备份中的容器名，值为恢复后的容器名。
+	NameMap map[string]string `json:"nameMap,optional"`
 }
 
 type ContainerUpdateReq struct {
@@ -34,6 +37,12 @@ type CreateContainerReq struct {
 
 type DelContainerBackupReq struct {
 	Filename string `form:"filename"`
+}
+
+// BackupCompareReq 对比两个 JSON 配置备份的差异。
+type BackupCompareReq struct {
+	Old string `form:"old"`
+	New string `form:"new"`
 }
 
 type DoLoginReq struct {
@@ -70,6 +79,12 @@ type RemoveImageReq struct {
 // filter=untagged 删除无 TAG 镜像，filter=unused 删除未被任何容器引用的镜像。
 type RemoveImagesReq struct {
 	Filter string `form:"filter"`
+}
+
+// BackupContainersReq 备份请求：include 为空备份全部容器，
+// 非空时只备份名称（或 ID）命中的容器。
+type BackupContainersReq struct {
+	Include []string `form:"include,optional"`
 }
 
 type RenameContainerReq struct {

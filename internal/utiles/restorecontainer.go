@@ -101,10 +101,25 @@ func inspectRestoreTarget(ctx context.Context, serviceContext *svc.ServiceContex
 	return &existing, nil
 }
 
+// RestoreOptions 恢复流程的可选项。
+type RestoreOptions struct {
+	// StartOverride 为空时按备份记录的状态恢复；非空时强制启动/不启动。
+	StartOverride *bool
+	// Force 为 true 时同名容器被替换重建；默认跳过同名容器。
+	Force bool
+	// NameMap 把备份里的容器名重定向到指定名字恢复（不改原容器）。
+	// 键为备份中的容器名，值为恢复后的容器名；空表示按原名恢复。
+	NameMap map[string]string
+}
+
 // RestoreContainer 从备份 JSON 恢复容器。
-// 默认按容器在备份时的运行状态恢复；startOverride 可强制启动/不启动。
-// 同名容器已存在时默认跳过（镜像不一致则报错），force=true 时删除后重建。
-func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContext, filename string, taskID string, startOverride *bool, force bool) error {
+// 默认按容器在备份时的运行状态恢复；opts.StartOverride 可强制启动/不启动。
+// 同名容器已存在时默认跳过（镜像不一致则报错），opts.Force=true 时删除后重建。
+// opts.NameMap 非空时，命中键的容器改名恢复，未命中的按原名恢复。
+func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContext, filename string, taskID string, opts RestoreOptions) error {
+	startOverride := opts.StartOverride
+	force := opts.Force
+	nameMap := opts.NameMap
 	progress := svc.TaskProgress{
 		TaskID:     taskID,
 		Percentage: 0,
@@ -182,6 +197,16 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 		}
 
 		info := "正在恢复第" + strconv.Itoa(i+1) + "个容器"
+		// 名称重定向：备份里的容器名可以映射到另一个名字恢复，
+		// 用于“不改原容器、以副本方式恢复”的场景。
+		targetName := entry.Name
+		if nameMap != nil {
+			if mapped, ok := nameMap[entry.Name]; ok && strings.TrimSpace(mapped) != "" && strings.TrimSpace(mapped) != entry.Name {
+				entry.Name = strings.TrimSpace(mapped)
+				targetName = entry.Name
+				info += "（重定向到 " + targetName + "）"
+			}
+		}
 		progress.Percentage = int(float64(i) / float64(len(configList)) * 90)
 		progress.Message = info
 		progress.DetailMsg = info

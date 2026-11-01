@@ -18,7 +18,9 @@ import (
 // BackupContainer 把全部容器配置备份为一个 JSON 文件。
 // 单个容器 inspect 失败不中止整体备份，失败清单通过返回值带回；
 // 全部容器都失败时才返回错误。
-func BackupContainer(ctx *svc.ServiceContext) (failures []string, err error) {
+// include 非空时只备份名称命中的容器（精确匹配；支持从容器列表的
+// 带斜杠名称与 inspect 后的去斜杠名称两种写法）。
+func BackupContainer(ctx *svc.ServiceContext, include ...string) (failures []string, err error) {
 	if ctx.DockerClient == nil {
 		return nil, fmt.Errorf("Docker 客户端未初始化，请检查 DOCKER_HOST 配置")
 	}
@@ -26,10 +28,41 @@ func BackupContainer(ctx *svc.ServiceContext) (failures []string, err error) {
 	if err != nil {
 		return nil, err
 	}
+	// 过滤集合统一成去斜杠名字，同时保留 ID 便于按 ID 过滤。
+	var includeSet map[string]bool
+	if len(include) > 0 {
+		includeSet = make(map[string]bool, len(include))
+		for _, name := range include {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			includeSet[name] = true
+			includeSet[strings.TrimPrefix(name, "/")] = true
+		}
+		if len(includeSet) == 0 {
+			return nil, fmt.Errorf("备份过滤条件为空：include 里没有有效容器名")
+		}
+	}
 	backupList := make([]ContainerBackupEntry, 0, len(containerList))
 	failures = make([]string, 0)
 	for i := range containerList {
 		containerID := containerList[i].ID
+		// 备份过滤：include 非空时只备份命中的容器（名字或 ID 精确匹配）。
+		if includeSet != nil {
+			hit := includeSet[containerID]
+			if !hit {
+				for _, name := range containerList[i].Names {
+					if includeSet[strings.TrimPrefix(name, "/")] {
+						hit = true
+						break
+					}
+				}
+			}
+			if !hit {
+				continue
+			}
+		}
 		inspectCtx, cancel := dockerTimeout(context.Background(), dockerInspectTimeout)
 		inspectedContainer, err := ctx.DockerClient.ContainerInspect(inspectCtx, containerID)
 		cancel()
@@ -81,6 +114,9 @@ func BackupContainer(ctx *svc.ServiceContext) (failures []string, err error) {
 	}
 	if len(backupList) == 0 && len(failures) > 0 {
 		return failures, fmt.Errorf("全部 %d 个容器备份失败，未生成备份文件", len(failures))
+	}
+	if len(backupList) == 0 && includeSet != nil {
+		return nil, fmt.Errorf("备份过滤没有命中任何容器：请确认容器名（include=%v）", include)
 	}
 	jsonData, err := json.MarshalIndent(backupList, "", "  ")
 	if err != nil {

@@ -75,7 +75,7 @@ environment:
 
 ## 4. 工具清单
 
-共 27 个工具，命名统一以 `dt_` 开头。
+共 28 个工具，命名统一以 `dt_` 开头。
 
 ### 通用
 
@@ -110,10 +110,11 @@ environment:
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `dt_backup_containers` | - | 备份为 JSON |
+| `dt_backup_containers` | - | 备份为 JSON（可选 `include` 只备份指定容器） |
 | `dt_backup_compose` | - | 导出 docker-compose YAML |
 | `dt_list_backups` | - | 备份文件列表 |
-| `dt_restore_container` | `filename`, `start?`, `force?` | 从 JSON 备份恢复；`force` 走“改名旧容器→新建→成功后删旧容器”，失败回滚 |
+| `dt_compare_backups` | `old`, `new` | 对比两个 JSON 配置备份：新增/移除容器，镜像、环境、挂载、端口、重启策略、网络的差异 |
+| `dt_restore_container` | `filename`, `start?`, `force?`, `nameMap?` | 从 JSON 备份恢复；`force` 走“改名旧容器→新建→成功后删旧容器”，失败回滚；`nameMap` 可把备份里的容器重定向到新名字恢复，不动原容器 |
 | `dt_delete_backup` | `filename` | 删除备份文件（不动容器） |
 
 ### 进度

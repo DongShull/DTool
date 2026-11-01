@@ -66,7 +66,11 @@ func (l *RestoreLogic) Restore(req *types.ContainerRestoreReq) (resp *types.Resp
 			}
 			l.svcCtx.FinishTask(taskID)
 		}()
-		err := utiles.RestoreContainer(taskCtx, l.svcCtx, fileName, taskID, req.Start, req.Force)
+		err := utiles.RestoreContainer(taskCtx, l.svcCtx, fileName, taskID, utiles.RestoreOptions{
+			StartOverride: req.Start,
+			Force:         req.Force,
+			NameMap:       req.NameMap,
+		})
 		if err != nil {
 			l.Errorf("恢复容器出错: %v", err)
 		}
