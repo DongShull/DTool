@@ -69,7 +69,7 @@ services:
 | `CLEANUP_OLD_IMAGE` | true | 更新成功后清理不再被引用的旧镜像（`false` 关闭） |
 | `COMPOSE_UPDATE` | auto | Compose 容器更新策略：`auto`（默认，能用 compose 就用，失败回退容器方式）/ `force`（up 加 --force-recreate，latest 场景每次必重建，服务闪断一次）/ `container`（永远按容器方式）/ `compose-only`（compose 失败不兜底） |
 | `UPDATE_REPO` | DongShull/DTool | 版本检查与自更新仓库 |
-| `UPDATE_BRANCH` | latest | 版本检查分支 |
+| `UPDATE_BRANCH` | main | 版本检查分支（仓库默认分支；`latest` 已不存在，旧默认值会让版本检查 404） |
 | `UPDATE_SKIP_CHECKSUM` | false | 设为 `true` 时跳过自更新 SHA256 校验（仅用于过渡旧版本，不推荐） |
 | `githubProxy` | 空 | GitHub 代理前缀，如 `https://ghproxy.example/` |
 | `REGISTRY_INSECURE` | false | 设为 `true` 时 registry 检测跳过 TLS 校验（默认严格校验） |
@@ -93,6 +93,8 @@ services:
 
 ### HTTP API
 
+- 部分成功语义：`GET /api/container/backup`（部分容器备份失败）与 `DELETE /api/images`（部分镜像删除失败）返回 **HTTP 207** + `code:207`，失败清单在 `data.failures` / `data.failed`；全部成功仍是 200。
+- 备份作用域：`DELETE /api/container/backups` 只接受本工具生成的 `backup-*.json` / `backup-*.yaml`；`PUT /api/settings` 的 `backupDir` 拒绝 `/`、`/data/config`、`/data/logs`、`/app`、`/etc` 等目录，避免把删除作用域扩到配置与审计文件。
 - `POST /api/auth` 登录换 JWT（**JSON `{"secretKey":"..."}` 与表单编码 `secretKey=<值>` 都支持**；同一来源连续失败 5 次会限流 15 秒）。注意 update/rename 等接口仍只接受 form/query 参数，restore、settings 接口收 JSON body
 - `GET /api/containers` / `POST /api/container/:id/{start,stop,restart,rename,update}`
 - `GET /api/container/backup` / `GET /api/container/backup2compose` / `POST /api/container/backups/restore`

@@ -112,3 +112,41 @@
 - 写能力：volume prune、network create/connect、image prune/tag、pause/unpause、exec
 - 恢复链路：保留镜像 digest 与 platform、默认恢复比对完整配置而非仅镜像名
 - 备份对比：补齐 privileged/cap/security_opt/healthcheck/资源限制/`HostConfig.Mounts`/端口 `HostIP`
+
+## 六、P9 · 第二轮审计修复（2026-11-02）
+
+第二轮审计（`go test -race` 全绿、`staticcheck 2026.2.2` 无实质问题、handler/logic 薄层逐文件通读、自更新链全文、真实容器实测）发现 19 项，已全部修复。
+
+### P0
+
+| 问题 | 修复 |
+|---|---|
+| **版本链断裂**：`UPDATE_BRANCH` 默认 `latest`，但仓库默认分支是 `main` 且远程已无 `latest`。实测 `HEAD` 代码 `GET /api/version?type=remote` → `code:500 404 Not Found`；7 个发布 workflow 也全锚 `latest`，等于全部不触发 | 默认分支改 `main`；7 个 workflow 补齐 `main`；404 报错文案带上 `UPDATE_REPO`/`UPDATE_BRANCH` |
+| **`PUT /api/program` 静默降级**：handler `_ = httpx.Parse` 吞掉解析错误，`Target` 无 json tag。JSON 客户端请求"更新到 vX"实际执行"更新到最新版 + 退出进程" | 解析失败返回 400；补 json tag；退出码改 0（避免被 start.sh 记成启动失败而误回退）；MCP 通道同样调度退出 |
+
+### P1
+
+- **可远程删配置**：`backupDir` 可设为任意路径 + 删除接口只校验扩展名 → 能删 `progress.json`/`settings.json`。现在只允许 `backup-*`，目录白名单拒绝配置/日志/程序目录，删除写审计。
+- **compose 备份未纳入上一轮修复**：仍是秒级文件名 + 无锁；补齐纳秒 + 共用 `backupMu`。
+- **MCP 取消语义弱于 HTTP**：`CancelTask` → `CancelActiveTask`。
+- **任务提交后无进度记录**：查进度/SSE/取消都会 `taskID 未找到`；提交即写"任务已排队"占位。
+- **更新/恢复无跨操作锁**：新增 `LockContainerMutation` 全局锁，覆盖更新、恢复、改名、启停、重启。
+- **部分失败报成功**：备份与镜像清理改用 207。
+- **审计可绕过**：HTTP 通道的备份/导出 compose/对比/删除/图标上传补齐审计。
+- **UGREEN 专用版无护栏**：`ManagedUpdatePlatform` 同时拦 FnOS 与 UGREEN（大小写不敏感）。
+
+### P2
+
+- `start.sh`：`137`(OOM) 不再算稳定；`DTool.bak` 改临时文件 + 大小校验 + 原子 mv。
+- SSE 未知 taskID 在写 200 之前返回 404（消除无限重连风暴）。
+- 更新历史：唯一 tmp 名、损坏时保留 `.corrupt-*` 现场、`RemoveLastUpdateHistory` 按"刚追加的键"精确删除、`SliceStable` 排序。
+- 审计：所有错误路径改为记日志，不再静默。
+- webhook：校验 scheme、检查响应码、失败重试一次并记日志。
+- 自更新：换入路径改用二进制所在目录；解压增加条目数/单文件/累计大小上限；禁止 https→http 降级重定向；`SanitizeUpdateTarget` 拒绝纯点串。
+- `/api/icons` 返回类型统一为 map，上传补审计。
+- 更新任务的 `containerName` trim + 空值用 ID 反查真实名字。
+
+### 验收
+
+- `go build ./...` / `go vet ./...` / `go test ./...` / `go test -race ./...` 全绿
+- 容器内实测：版本检查 200（v2.2.0）、`backupDir=/data/config` 与 `/` 被拒、删除 `progress.json` 被拒、SSE 未知任务 404、备份文件名带纳秒、审计出现 backup.create/compose/delete、更新自身被拒、JSON `target` 正确解析（`..` 被拒）、非法 JSON 返回 400、任务占位进度可查
