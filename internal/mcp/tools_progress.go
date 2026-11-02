@@ -3,9 +3,9 @@ package mcp
 import (
 	"context"
 
+	"github.com/DongShull/DTool/internal/svc"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/DongShull/DTool/internal/svc"
 )
 
 func registerProgressTools(s *server.MCPServer, ctx *svc.ServiceContext) {
@@ -70,8 +70,12 @@ func registerProgressTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		if !ctx.CancelTask(taskID) {
-			return mcp.NewToolResultError("task not cancellable: " + taskID), nil
+		// 与 HTTP 通道一致：CancelActiveTask 会原子检查任务是否已结束，
+		// 并把 cancelled / cancelRequestedAt 落库；旧的 CancelTask 只 cancel 不记账，
+		// 导致 MCP 返回"已取消"但列表里仍是 done。
+		ok, msg := ctx.CancelActiveTask(taskID)
+		if !ok {
+			return mcp.NewToolResultError("task not cancellable: " + taskID + "（" + msg + "）"), nil
 		}
 		return textResult("cancel requested: " + taskID), nil
 	})

@@ -33,6 +33,16 @@ func StreamEventsHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, fmt.Errorf("taskID 不能为空"))
 			return
 		}
+		// 任务不存在时必须在写 200 之前返回 404：以前是先 WriteHeader(200)
+		// 再发一条 error 事件并关流，EventSource 会按 retry: 3000 无限重连，
+		// 对一个永远不存在的 taskID 形成稳定的重连风暴。
+		if _, exists := svcCtx.GetProgress(req.TaskId); !exists {
+			httpx.WriteJson(w, http.StatusNotFound, types.Resp{
+				Code: 404,
+				Msg:  "taskID 未找到",
+			})
+			return
+		}
 
 		_, ok := w.(http.Flusher)
 		if !ok {

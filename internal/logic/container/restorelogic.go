@@ -3,8 +3,8 @@ package container
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/DongShull/DTool/internal/utiles"
+	"github.com/google/uuid"
 	"path/filepath"
 
 	"github.com/DongShull/DTool/internal/svc"
@@ -47,6 +47,14 @@ func (l *RestoreLogic) Restore(req *types.ContainerRestoreReq) (resp *types.Resp
 		return resp, err
 	}
 	taskCtx := l.svcCtx.RegisterTask(taskID)
+	// 占位进度：恢复是全局串行的（restoreMu），排队期间必须能查到任务、也能取消。
+	l.svcCtx.UpdateProgress(taskID, svc.TaskProgress{
+		TaskID:    taskID,
+		Name:      "恢复容器",
+		Message:   "任务已排队",
+		DetailMsg: "等待上一轮恢复结束",
+		IsDone:    false,
+	})
 	go func() {
 		// Catch any panic and log the error
 		defer func() {
