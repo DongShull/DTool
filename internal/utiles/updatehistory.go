@@ -49,6 +49,17 @@ func updateHistoryPath() string {
 
 const updateHistoryMax = 50
 
+// lastAppendedKey 记录最近一次 AppendUpdateHistory 追加的条目键。
+// 历史满了之后会按时间倒序裁剪，数组末尾就不再是"刚追加的那条"，
+// 原先用 history[:len-1] 砍尾会误删真实的旧记录、把不该留的记录留下。
+var lastAppendedKey updateHistoryEntryKey
+
+type updateHistoryEntryKey struct {
+	Time        string
+	FromVersion string
+	ToVersion   string
+}
+
 // AppendUpdateHistory 追加一条更新记录；超出上限时裁掉最旧的。
 // 写失败只记日志，不影响更新主流程。
 func AppendUpdateHistory(entry UpdateHistoryEntry) {
@@ -65,9 +76,11 @@ func AppendUpdateHistory(entry UpdateHistoryEntry) {
 	}
 	history := readUpdateHistoryFile(path)
 	history = append(history, entry)
+	lastAppendedKey = updateHistoryEntryKey{Time: entry.Time, FromVersion: entry.FromVersion, ToVersion: entry.ToVersion}
 	if len(history) > updateHistoryMax {
 		// 按时间倒序裁剪：保留最近 updateHistoryMax 条。
-		sort.Slice(history, func(i, j int) bool {
+		// SliceStable：同秒记录保持插入顺序，避免"最新在前"随机抖动。
+		sort.SliceStable(history, func(i, j int) bool {
 			return history[i].Time > history[j].Time
 		})
 		history = history[:updateHistoryMax]
@@ -77,9 +90,10 @@ func AppendUpdateHistory(entry UpdateHistoryEntry) {
 		logx.Errorf("更新历史序列化失败: %v", err)
 		return
 	}
-	tmp := path + ".tmp"
+	tmp := fmt.Sprintf("%s.tmp-%d", path, os.Getpid())
 	if err = os.WriteFile(tmp, data, 0644); err != nil {
 		logx.Errorf("写更新历史临时文件失败: %v", err)
+		_ = os.Remove(tmp)
 		return
 	}
 	if err = os.Rename(tmp, path); err != nil {
@@ -109,7 +123,14 @@ func readUpdateHistoryFile(path string) []UpdateHistoryEntry {
 	}
 	var history []UpdateHistoryEntry
 	if err = json.Unmarshal(data, &history); err != nil {
-		logx.Errorf("更新历史解析失败（忽略并重建）: %v", err)
+		// 保留损坏文件再重建：旧实现直接返回 nil，下一次写入就把
+		// 最多 50 条历史一次性覆盖掉，事后无法追溯也无法修复。
+		backupPath := fmt.Sprintf("%s.corrupt-%d", path, time.Now().Unix())
+		if renameErr := os.Rename(path, backupPath); renameErr == nil {
+			logx.Errorf("更新历史解析失败，已备份为 %s 并重建: %v", backupPath, err)
+		} else {
+			logx.Errorf("更新历史解析失败（备份失败 %v）: %v", renameErr, err)
+		}
 		return nil
 	}
 	return history
@@ -137,16 +158,34 @@ func RemoveLastUpdateHistory() {
 	if len(history) == 0 {
 		return
 	}
-	history = history[:len(history)-1]
+	// 只删除"刚追加的那条"；找不到就什么都不做（宁可不删，也不误删真实记录）。
+	removed := false
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].Time == lastAppendedKey.Time &&
+			history[i].FromVersion == lastAppendedKey.FromVersion &&
+			history[i].ToVersion == lastAppendedKey.ToVersion {
+			history = append(history[:i], history[i+1:]...)
+			removed = true
+			break
+		}
+	}
+	if !removed {
+		logx.Errorf("RemoveLastUpdateHistory 未找到刚追加的记录，跳过删除")
+		return
+	}
 	data, err := json.MarshalIndent(history, "", "  ")
 	if err != nil {
 		return
 	}
-	tmp := path + ".tmp"
+	tmp := fmt.Sprintf("%s.tmp-%d", path, os.Getpid())
 	if err = os.WriteFile(tmp, data, 0644); err != nil {
+		logx.Errorf("写更新历史临时文件失败: %v", err)
+		_ = os.Remove(tmp)
 		return
 	}
-	_ = os.Rename(tmp, path)
+	if err = os.Rename(tmp, path); err != nil {
+		logx.Errorf("更新历史落地失败: %v", err)
+	}
 }
 
 // updateVersionPattern 版本号合法字符：字母数字与 . - _ +（semver 常见字符）。
@@ -168,6 +207,11 @@ func SanitizeUpdateTarget(version string) (string, error) {
 	}
 	if !updateVersionPattern.MatchString(v) {
 		return "", fmt.Errorf("目标版本号包含非法字符: %q", v)
+	}
+	// 纯点串（"." / ".." / "..."）能通过字符白名单，但拼进下载 URL 会做路径上跳，
+	// 配了 githubProxy 时还能打到代理的其它上游路径。
+	if strings.Trim(v, ".") == "" {
+		return "", fmt.Errorf("目标版本号非法: %q", v)
 	}
 	return v, nil
 }

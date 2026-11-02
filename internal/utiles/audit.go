@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type auditEntry struct {
@@ -34,12 +36,14 @@ func AuditLog(action, target, detail string) {
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
+		logx.Errorf("审计序列化失败（action=%s）: %v", action, err)
 		return
 	}
 	auditMu.Lock()
 	defer auditMu.Unlock()
 	path := auditLogPath()
 	if err = os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		logx.Errorf("审计目录不可用（action=%s）: %v", action, err)
 		return
 	}
 	// 简单轮转：超过 10MB 就保留一份 .1，避免长期运行无限增长。
@@ -49,10 +53,13 @@ func AuditLog(action, target, detail string) {
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
+		logx.Errorf("审计文件打开失败（action=%s）: %v", action, err)
 		return
 	}
 	defer func(f *os.File) {
 		_ = f.Close()
 	}(f)
-	_, _ = f.Write(append(data, '\n'))
+	if _, writeErr := f.Write(append(data, '\n')); writeErr != nil {
+		logx.Errorf("审计写入失败（action=%s）: %v", action, writeErr)
+	}
 }
