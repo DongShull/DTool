@@ -3,6 +3,7 @@ package version
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/DongShull/DTool/internal/config"
 
@@ -28,6 +29,10 @@ func NewVersionLogic(ctx context.Context, svcCtx *svc.ServiceContext) *VersionLo
 
 func (l *VersionLogic) Version(req *types.VersionReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
+	if strings.TrimSpace(req.Type) == "" {
+		// type 缺省默认查本地版本：裸 GET /api/version 是最常见的调用方式。
+		req.Type = "local"
+	}
 	if req.Type == "local" {
 		resp.Code = 200
 		resp.Msg = "success"

@@ -74,7 +74,10 @@ type IdReq struct {
 }
 
 type LoginReq struct {
-	SecretKey string `form:"secretKey,optional"`
+	// json tag 与 form tag 并存：JSON 客户端（axios/fetch 默认发 JSON）与
+	// form/query 客户端都能登录。此前只有 form tag 时，JSON body 里的
+	// secretKey 不会被解析，登录恒返回"无效的secretKey"。
+	SecretKey string `form:"secretKey,optional" json:"secretKey,optional"`
 }
 
 type MsgResp struct {
@@ -132,7 +135,9 @@ type VersionMsgResp struct {
 }
 
 type VersionReq struct {
-	Type string `form:"type"`
+	// type 可选，缺省按 local 处理：此前 form:"type" 为必填，
+	// 裸 GET /api/version 会得到 code:50000 "field \"type\" is not set"。
+	Type string `form:"type,optional" json:"type,optional"`
 }
 
 type GetNewImageReq struct {
