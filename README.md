@@ -81,7 +81,7 @@ services:
 | `AUDIT_LOG` | /data/logs/audit.jsonl | 审计日志（JSON Lines） |
 | `AUTOUPDATE_CRON` | 空 | 自动更新周期（cron 表达式，空=关闭），如 `0 4 * * *` |
 | `AUTOUPDATE_WHITELIST` | 空 | 自动更新容器白名单（逗号分隔；`*` 表示全部有更新的容器） |
-| `MCP_TOKEN` | 空 | `/mcp` 的访问令牌；为空时回退到 `secretKey`，设为 `off` 显式关闭鉴权（仅限隔离内网） |
+| `MCP_TOKEN` | 空 | `/mcp` 的访问令牌；为空时回退到 `secretKey`。设为 `off` 可关闭鉴权，**但仅允许在端口绑定回环（127.0.0.1）时使用**，其它监听地址会拒绝启动（`/mcp` 等价于 Docker 控制面，未鉴权对外等于宿主 root） |
 
 ## 接入方式
 
@@ -93,7 +93,7 @@ services:
 
 ### HTTP API
 
-- `POST /api/auth` 登录换 JWT（表单编码：`secretKey=<值>`；注意 `/api/auth` 与 update/rename 等接口只接受 form/query 参数，restore、settings 接口收 JSON body）
+- `POST /api/auth` 登录换 JWT（**JSON `{"secretKey":"..."}` 与表单编码 `secretKey=<值>` 都支持**；同一来源连续失败 5 次会限流 15 秒）。注意 update/rename 等接口仍只接受 form/query 参数，restore、settings 接口收 JSON body
 - `GET /api/containers` / `POST /api/container/:id/{start,stop,restart,rename,update}`
 - `GET /api/container/backup` / `GET /api/container/backup2compose` / `POST /api/container/backups/restore`
   - 备份每次生成独立文件（`backup-<时间戳>.json` / `.yaml`），超出 `BACKUP_KEEP` 的旧备份自动清理；响应里的 `failures` 列出本次备份失败的容器

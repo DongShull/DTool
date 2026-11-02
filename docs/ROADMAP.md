@@ -84,3 +84,31 @@
 - 非 privileged 容器（仅挂载 docker.sock + 数据卷）可跑通全部功能
 - `go test ./internal/mcp/` 覆盖工具注册、鉴权与 Streamable HTTP 握手
 - MCP 客户端可完成「列容器 → 更新 → 查进度」全流程，`/api/*` 行为不变
+
+## 五、P8 · 安全与契约修复（进行中，代码已入仓）
+
+依据 2026-11-02 的后端审计（静态通读 + 对运行实例只读实测），先止血再补能力。
+
+### 第 0 批（P0 止血，已实现）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| 1 | 恢复/更新/自动更新会作用于 DTool 自身容器，进程随容器死在半路、回滚代码执行不到 | 新增 `internal/utiles/selfid.go`：从 `/proc/self/mountinfo`、`/proc/self/cgroup`、`HOSTNAME` 推断自身容器 ID；`UpdateContainer` 拒绝自身、`RunAutoUpdate` 跳过自身（改按容器 ID，不再依赖镜像名含 `dtool`，旧判断在镜像叫 `dockercopilot:*` 时失效）、`Restore` 把自身容器名计入 `skipped` 并拒绝 nameMap 重定向到自身 |
+| 2 | `POST /api/auth` 只认 form/query，JSON body 登录恒失败并误报"无效的secretKey" | `LoginReq` 增加 `json:"secretKey,optional"`，form/JSON 双通 |
+| 3 | 登录接口无限流，CORS 全域放开时可在浏览器侧爆破 | `/api/auth` 进程内限流：同 IP 连续 5 次失败锁定 15 秒，命中返回 429 |
+| 4 | 裸 `GET /api/version` 返回 `code:50000 field "type" is not set` | `VersionReq.Type` 改可选，缺省按 `local` 处理 |
+| 5 | `MCP_TOKEN=off` 在任何监听地址上都关闭 `/mcp` 鉴权 | `off` 仅在回环监听（127.0.0.1/localhost/::1）时允许，否则拒绝启动（start.sh 失败计数会自动回退上一版） |
+| 6 | 备份文件名秒级 + 备份无互斥，同秒并发备份互相覆盖 | 文件名加纳秒；`BackupContainer` 全流程加 `backupMu` 串行化 |
+
+### 审计误报更正
+
+- **`GET /api/progress/export` 并未被 `/progress/:taskid` 抢路由**：go-zero 的 patrouter 按注册顺序取首个匹配，导出路由本就注册在参数路由之前。实测返回"taskID 未找到"是因为线上镜像构建于 10-31，而导出路由是 11-01 的提交 —— 属**部署落后于代码**。本轮补充了回归测试 `TestProgressExportRouteNotShadowed` 守住该行为。
+
+### 待办（第 1~4 批）
+
+- 契约治理：统一 `code`（`/api/containers` 现返回 0，其余 200）、错误结构带真实 HTTP 状态码、`dtool.api` 导出 OpenAPI
+- SSE 鉴权：`EventSource` 无法带 `Authorization`，需支持短时 ticket / `?token=`
+- 只读控制面：logs、stats、events(SSE 桥接)、volumes list、networks list、容器 inspect 详情
+- 写能力：volume prune、network create/connect、image prune/tag、pause/unpause、exec
+- 恢复链路：保留镜像 digest 与 platform、默认恢复比对完整配置而非仅镜像名
+- 备份对比：补齐 privileged/cap/security_opt/healthcheck/资源限制/`HostConfig.Mounts`/端口 `HostIP`
