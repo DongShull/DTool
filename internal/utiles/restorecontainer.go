@@ -182,6 +182,11 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 	negotiateCancel()
 	var failures []string
 	var completed []string
+	// P0 自身保护：恢复（尤其 force=true）会 stop→rename→remove 同名容器，
+	// 若备份里包含 DTool 自身，进程会随容器一起死在半路。按自身容器名跳过，
+	// 同时拒绝 nameMap 把其它容器映射到自身名字（同样会杀死进程）。
+	selfName := SelfContainerName(serviceContext)
+	var skipped []string
 	for i, entry := range configList {
 		if err = taskCtx.Err(); err != nil {
 			progress.Percentage = 100
@@ -206,6 +211,14 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 				targetName = entry.Name
 				info += "（重定向到 " + targetName + "）"
 			}
+		}
+		if selfName != "" && targetName == selfName {
+			// 无论来自备份原名还是 nameMap 重定向，都不允许动 DTool 自身：
+			// 恢复会 stop→rename→remove 同名容器，进程会死在半路。
+			// 计入 skipped（而不是 failures）：全量备份里包含自身属正常情况，
+			// 不应让整次恢复报错。
+			skipped = append(skipped, targetName+"（自身容器，已跳过：恢复会停掉并删除 DTool 所在容器）")
+			continue
 		}
 		progress.Percentage = int(float64(i) / float64(len(configList)) * 90)
 		progress.Message = info
@@ -373,6 +386,7 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 
 	progress.Percentage = 100
 	details := append([]string{}, completed...)
+	details = append(details, skipped...)
 	details = append(details, failures...)
 	progress.DetailMsg = strings.Join(details, "；\n")
 	if len(failures) > 0 {
@@ -382,6 +396,9 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 		return fmt.Errorf("%d 个容器恢复失败: %s", len(failures), strings.Join(failures, "；"))
 	}
 	progress.Message = "恢复完成"
+	if len(skipped) > 0 {
+		progress.Message = fmt.Sprintf("恢复完成（跳过 %d 个自身容器）", len(skipped))
+	}
 	progress.IsDone = true
 	serviceContext.UpdateProgress(taskID, progress)
 	return nil

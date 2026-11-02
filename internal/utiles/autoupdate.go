@@ -51,6 +51,10 @@ func RunAutoUpdate(serviceContext *svc.ServiceContext) {
 	// 与手动更新保持一致：默认删除旧容器，显式 DelOldContainer=false 时保留。
 	delOldContainer := os.Getenv("DelOldContainer") != "false"
 
+	// P0 自身保护按容器 ID 判断（镜像名判断在改名/换 tag 后会漏判，
+	// 例如镜像叫 dockercopilot:* 时不包含 "dtool" 字样）。
+	selfID := DetectSelfContainerID()
+
 	for _, c := range containers {
 		if len(c.Names) == 0 || c.Image == "" {
 			continue
@@ -64,8 +68,12 @@ func RunAutoUpdate(serviceContext *svc.ServiceContext) {
 			continue
 		}
 		name := strings.TrimPrefix(c.Names[0], "/")
-		if strings.Contains(strings.ToLower(c.Image), "dtool") {
+		if IsSelfContainer(selfID, c.ID) {
 			// 不自动更新自己，避免更新过程中进程被杀。
+			continue
+		}
+		if strings.Contains(strings.ToLower(c.Image), "dtool") {
+			// 宿主裸跑（拿不到自身容器 ID）时的兜底：仍按镜像名排除自身。
 			continue
 		}
 		if !allowAll && !allowed[name] {

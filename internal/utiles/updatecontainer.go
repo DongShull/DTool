@@ -53,6 +53,15 @@ func UpdateContainer(serviceContext *svc.ServiceContext, ctx context.Context, id
 		return false
 	}
 
+	// P0 自身保护：更新链路会 stop→rename→remove 目标容器，若目标是 DTool
+	// 自己，进程会随容器一起死在半路，回滚代码永远执行不到（旧容器会以
+	// 备份名遗留在停止状态）。自身更新请走程序自更新（PUT /api/program）
+	// 或宿主侧 compose，二进制替换不依赖容器重建。
+	if IsSelfContainer(DetectSelfContainerID(), id) {
+		progress(100, "拒绝更新自身容器", "目标是 DTool 自身容器；请使用程序自更新接口（PUT /api/program）或宿主侧 compose 更新", true)
+		return fmt.Errorf("拒绝更新自身容器：请使用程序自更新接口")
+	}
+
 	progress(0, "正在连接Docker", "正在连接Docker", false)
 	if cancelled() {
 		return ctx.Err()
