@@ -83,7 +83,8 @@ func DockerConfig2ComposeYaml(containerJSONs []dockerTypes.ContainerJSON, backup
 		return yamlMarshalErr
 	}
 	// 文件名带时间戳：同一天多次导出互不覆盖；旧备份由调用方按 BACKUP_KEEP 清理。
-	fileName := "backup-" + time.Now().Format("2006-01-02-150405") + ".yaml"
+	// 纳秒时间戳：秒级文件名 + Rename 覆盖会让同秒两次导出互相覆盖（JSON 备份已改） 。
+	fileName := "backup-" + time.Now().Format("2006-01-02-150405.000000000") + ".yaml"
 	fullPath := filepath.Join(backupDir, fileName)
 	tmp, err := os.CreateTemp(backupDir, ".backup-*.yaml.tmp")
 	if err != nil {

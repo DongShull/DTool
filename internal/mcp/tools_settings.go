@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/DongShull/DTool/internal/utiles"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 func registerSettingsTools(s *server.MCPServer, ctx *svc.ServiceContext) {
@@ -32,6 +32,9 @@ func registerSettingsTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		dir = strings.TrimSpace(dir)
+		if ok, reason := utiles.IsSafeBackupDir(dir); !ok {
+			return mcp.NewToolResultError(reason), nil
+		}
 		if !filepath.IsAbs(dir) {
 			return mcp.NewToolResultError("备份目录必须是绝对路径"), nil
 		}

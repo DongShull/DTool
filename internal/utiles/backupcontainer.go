@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DongShull/DTool/internal/svc"
 	dockerBackend "github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/api/types/network"
-	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -33,6 +33,9 @@ func BackupContainer(ctx *svc.ServiceContext, include ...string) (failures []str
 	// 也串行化整次备份，保证 BACKUP_KEEP 的份数计数不被并发打乱。
 	backupMu.Lock()
 	defer backupMu.Unlock()
+	if dir, reason := CheckBackupDirSafe(); dir != "" && reason != "" {
+		return nil, fmt.Errorf("%s", reason)
+	}
 	containerList, err := GetContainerList(ctx)
 	if err != nil {
 		return nil, err
@@ -177,5 +180,13 @@ func BackupContainer(ctx *svc.ServiceContext, include ...string) (failures []str
 		return failures, err
 	}
 	pruneOldBackups(backupDir, "backup-*.json", BackupKeepCount())
+	detail := fileName
+	if len(include) > 0 {
+		detail += "（仅含 " + strings.Join(include, ",") + "）"
+	}
+	if len(failures) > 0 {
+		detail += fmt.Sprintf("；%d 个容器失败", len(failures))
+	}
+	AuditLog("backup.create", backupDir, detail)
 	return failures, nil
 }
