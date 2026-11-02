@@ -43,13 +43,19 @@ func (l *VersionLogic) Version(req *types.VersionReq) (resp *types.Resp, err err
 		return resp, nil
 	} else if req.Type == "remote" {
 		remoteVersion, err := utiles.GetRemoteVersion()
-		if errors.Is(err, utiles.ErrFnosManagedUpdate) {
-			// FNOS 版本不走通用更新链：明确告知用户，而不是伪装成“无更新”。
+		if errors.Is(err, utiles.ErrPlatformManagedUpdate) {
+			// FNOS / UGREEN 等专用版不走通用更新链：明确告知，而不是伪装成“无更新”。
+			platform, _ := utiles.ManagedUpdatePlatform(config.Version)
 			resp.Code = 200
 			resp.Msg = err.Error()
 			resp.Data = map[string]string{
 				"remoteVersion": config.Version,
-				"fnos":          "true",
+				"platform":      strings.ToLower(platform),
+				"managed":       "true",
+			}
+			if strings.EqualFold(platform, "FnOS") {
+				// 兼容旧字段：老调用方只认 fnos=true。
+				resp.Data.(map[string]string)["fnos"] = "true"
 			}
 			return resp, nil
 		}
