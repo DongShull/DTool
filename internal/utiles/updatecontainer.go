@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DongShull/DTool/internal/svc"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	dockerMsgType "github.com/docker/docker/pkg/jsonmessage"
-	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -120,7 +120,9 @@ func UpdateContainer(serviceContext *svc.ServiceContext, ctx context.Context, id
 	// 失败或不可用时回退到下方的容器链路兑底 ----
 	if strategy := ComposeUpdateStrategy(); isCompose && strategy != ComposeStrategyContainer {
 		progress(10, "正在检查 Compose 可用性", "尝试以 compose 方式更新", false)
+		unlockCompose := LockContainerMutation()
 		completed, composeOut, composeErr := tryComposeUpdate(ctx, serviceContext, &inspectedContainer, oldContainerName, taskID)
+		unlockCompose()
 		if completed {
 			if composeErr != nil {
 				progress(100, "Compose 更新失败", composeErr.Error(), true)
@@ -222,6 +224,12 @@ func UpdateContainer(serviceContext *svc.ServiceContext, ctx context.Context, id
 	}
 
 	// 2. 停止旧容器（原本停止的容器跳过，避免更新后把它误启动）
+	// 从这里开始进入"名字中间态"（旧容器改名→新容器用原名创建），必须持有
+	// 全局变更锁，否则并发的 rename/start/stop（或另一次恢复）会让 create
+	// 因名字被占用而失败，并把用户看到的错误误导成"更新失败"。
+	// 镜像拉取是分钟级操作，故意放在取锁之前。
+	unlockMutation := LockContainerMutation()
+	defer unlockMutation()
 	progress(30, "正在停止容器", "正在停止容器", false)
 	stopOptions := container.StopOptions{
 		Signal:  signal,

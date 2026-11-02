@@ -2,8 +2,8 @@ package utiles
 
 import (
 	"context"
-	"github.com/docker/docker/api/types/container"
 	"github.com/DongShull/DTool/internal/svc"
+	"github.com/docker/docker/api/types/container"
 )
 
 func StopContainer(ctx *svc.ServiceContext, id string) error {
@@ -13,6 +13,8 @@ func StopContainer(ctx *svc.ServiceContext, id string) error {
 		Signal:  signal,
 		Timeout: &timeout,
 	}
+	unlockMutation := LockContainerMutation()
+	defer unlockMutation()
 	requestCtx, cancel := dockerTimeout(context.Background(), dockerMutationTimeout)
 	defer cancel()
 	err := ctx.DockerClient.ContainerStop(requestCtx, id, stopOptions)

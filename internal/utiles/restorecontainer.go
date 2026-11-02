@@ -7,22 +7,19 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/DongShull/DTool/internal/svc"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // 恢复会按容器名做冲突判断，两个恢复任务并发时可能都认为“不存在”
 // 然后同时创建同名容器；这里串行化整个恢复流程。
-var restoreMu sync.Mutex
-
 func restoreShouldStart(entry ContainerBackupEntry, startOverride *bool) bool {
 	if startOverride != nil {
 		return *startOverride
@@ -135,8 +132,10 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 		serviceContext.UpdateProgress(taskID, progress)
 		return fmt.Errorf("Docker 客户端未初始化，请检查 DOCKER_HOST 配置")
 	}
-	restoreMu.Lock()
-	defer restoreMu.Unlock()
+	// 与更新/改名/启停共用一把全局变更锁：恢复期间的 stop→rename→create
+	// 不能让别的操作插进来（反之亦然）。
+	unlockMutation := LockContainerMutation()
+	defer unlockMutation()
 	fullPath, err := ResolveBackupPath(filename, ".json")
 	if err != nil {
 		logx.Errorf("解析备份文件路径失败: %v", err)

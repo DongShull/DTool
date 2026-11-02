@@ -2,11 +2,13 @@ package utiles
 
 import (
 	"context"
-	"github.com/docker/docker/api/types/container"
 	"github.com/DongShull/DTool/internal/svc"
+	"github.com/docker/docker/api/types/container"
 )
 
 func StartContainer(ctx *svc.ServiceContext, id string) error {
+	unlockMutation := LockContainerMutation()
+	defer unlockMutation()
 	requestCtx, cancel := dockerTimeout(context.Background(), dockerMutationTimeout)
 	defer cancel()
 	startOptions := container.StartOptions{}
