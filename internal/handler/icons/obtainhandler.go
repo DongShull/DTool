@@ -21,10 +21,12 @@ func ObtainHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		if err != nil {
 			if os.IsNotExist(err) {
 				logx.Info("图标配置文件不存在，返回空")
+				// 与正常路径保持同一类型：此前这里返回字符串 "{}"，
+				// 正常路径返回 map[string]string，前端要写两套解析。
 				httpx.OkJsonCtx(r.Context(), w, types.Resp{
 					Code: 200,
-					Msg:  "Success",
-					Data: "{}",
+					Msg:  "success",
+					Data: map[string]string{},
 				})
 				return
 			}
@@ -59,7 +61,7 @@ func ObtainHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			Data map[string]string `json:"data"`
 		}{
 			Code: 200,
-			Msg:  "Success",
+			Msg:  "success",
 			Data: icons,
 		}
 

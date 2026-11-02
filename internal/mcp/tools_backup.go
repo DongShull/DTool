@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DongShull/DTool/internal/svc"
+	"github.com/DongShull/DTool/internal/utiles"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/DongShull/DTool/internal/svc"
-	"github.com/DongShull/DTool/internal/utiles"
 )
 
 func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
@@ -35,7 +35,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if backupErr != nil {
 			return mcp.NewToolResultError(backupErr.Error()), nil
 		}
-		utiles.AuditLog("container.backup", "all", "backup completed")
+		// 审计由 utiles.BackupContainer 统一记录（含 include 范围与失败数）
 		result := map[string]any{
 			"result":   "backup completed",
 			"dir":      utiles.EffectiveBackupDir(),
@@ -53,7 +53,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if err := utiles.Backup2Compose(ctx); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		utiles.AuditLog("container.backup2compose", "all", "compose backup completed")
+		// 审计由 utiles.Backup2Compose 统一记录
 		return textResult("compose backup completed, dir=" + utiles.EffectiveBackupDir()), nil
 	})
 
@@ -118,7 +118,7 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if raw, ok := args["nameMap"]; ok && raw != nil {
 			m, convErr := optionalStringMap(raw)
 			if convErr != nil {
-				return mcp.NewToolResultError("nameMap 非法: "+convErr.Error()), nil
+				return mcp.NewToolResultError("nameMap 非法: " + convErr.Error()), nil
 			}
 			nameMap = m
 		}

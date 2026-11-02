@@ -34,11 +34,13 @@ func (l *BackupLogic) Backup(req *types.BackupContainersReq) (resp *types.Resp, 
 		resp.Data = map[string]interface{}{"failures": failures}
 		return resp, err
 	}
+	// 部分失败必须与"全部成功"在协议层可区分：HTTP 207 + code 207。
+	// 旧实现把部分失败也报成 200/success，前端与脚本会认为整份备份可用。
 	resp.Code = 200
+	resp.Msg = "success"
 	if len(failures) > 0 {
-		resp.Msg = fmt.Sprintf("备份完成，%d 个容器失败", len(failures))
-	} else {
-		resp.Msg = "success"
+		resp.Code = 207
+		resp.Msg = fmt.Sprintf("备份部分失败：%d 个容器未写入备份文件", len(failures))
 	}
 	resp.Data = map[string]interface{}{"failures": failures}
 	return resp, nil

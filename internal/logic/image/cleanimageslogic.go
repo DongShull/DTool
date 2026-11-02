@@ -45,11 +45,13 @@ func (l *CleanImagesLogic) CleanImages(req *types.RemoveImagesReq) (resp *types.
 	// 已删除/失败清单都进审计，删除操作不可恢复，必须留痕。
 	utiles.AuditLog("image.cleanup", req.Filter,
 		"removed="+strconv.Itoa(len(removed))+", failed="+strconv.Itoa(len(failed)))
+	// 部分失败用 207 明确区分：镜像已被真删除、无法回滚，
+	// 把"部分失败"报成 200/success 会让调用方误判清理结果。
 	resp.Code = 200
+	resp.Msg = "success"
 	if len(failed) > 0 {
-		resp.Msg = "清理完成，部分镜像删除失败"
-	} else {
-		resp.Msg = "success"
+		resp.Code = 207
+		resp.Msg = "清理部分失败：" + strconv.Itoa(len(failed)) + " 个镜像未删除（详见 failed 字段）"
 	}
 	resp.Data = map[string]interface{}{
 		"filter":  req.Filter,

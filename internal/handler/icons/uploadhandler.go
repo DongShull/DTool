@@ -11,9 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/DongShull/DTool/internal/types"
+	"github.com/DongShull/DTool/internal/utiles"
+	"github.com/google/uuid"
 	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
@@ -91,9 +92,11 @@ func UploadHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 
+		// 上传会改写图标配置，HTTP 通道此前完全没有审计痕迹（MCP 侧也没这功能）。
+		utiles.AuditLog("icons.upload", imageNameKey, "icon="+filename)
 		httpx.OkJsonCtx(r.Context(), w, types.Resp{
 			Code: 200,
-			Msg:  "Success",
+			Msg:  "success",
 			Data: filename,
 		})
 	}
