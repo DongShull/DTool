@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mark3labs/mcp-go/server"
 	"github.com/DongShull/DTool/internal/svc"
+	"github.com/mark3labs/mcp-go/server"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest"
 )
@@ -18,6 +18,13 @@ const Version = "2.2.0"
 // Register 把 DTool 的全部能力注册为 MCP 工具，并挂载到 /mcp（Streamable HTTP）。
 // 与 /api/* 并存：HTTP API 继续给脚本和旧客户端用，MCP 给 Agent 用。
 func Register(s *rest.Server, ctx *svc.ServiceContext) {
+	// P0：/mcp 等价于 Docker 控制面，未鉴权暴露等于宿主 root。
+	// MCP_TOKEN=off 只允许在回环监听时使用；其它地址直接拒绝启动，
+	// start.sh 的失败计数会自动回退到上一版二进制，不会把用户锁死。
+	if mcpAuthDisabled() && !isLoopbackHost(ctx.Config.Host) {
+		logx.Errorf("MCP_TOKEN=off 仅允许在回环监听（Host=127.0.0.1/localhost/::1）时使用，当前 Host=%s；请设置 MCP_TOKEN，或把端口绑定改为 127.0.0.1。拒绝启动", ctx.Config.Host)
+		os.Exit(1)
+	}
 	mcpServer := NewServer(ctx)
 	httpSrv := server.NewStreamableHTTPServer(mcpServer)
 	handler := authMiddleware(ctx, httpSrv)
@@ -54,10 +61,19 @@ func NewServer(ctx *svc.ServiceContext) *server.MCPServer {
 	return mcpServer
 }
 
-// mcpAuthDisabled 允许用 MCP_TOKEN=off 显式关闭鉴权（仅建议在完全隔离的内网使用）。
+// mcpAuthDisabled 允许用 MCP_TOKEN=off 显式关闭鉴权（仅允许在回环监听时，见 Register）。
 func mcpAuthDisabled() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("MCP_TOKEN")))
 	return v == "off" || v == "none" || v == "disabled"
+}
+
+// isLoopbackHost 判断 rest 监听地址是否只绑回环。
+func isLoopbackHost(host string) bool {
+	switch strings.ToLower(strings.TrimSpace(host)) {
+	case "", "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	return false
 }
 
 // expectedToken 优先使用 MCP_TOKEN，未设置时退回 secretKey（与 /api 的 JWT 密钥同源）。
