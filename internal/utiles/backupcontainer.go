@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	dockerBackend "github.com/docker/docker/api/types/backend"
@@ -14,6 +15,9 @@ import (
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 )
+
+// backupMu 串行化整次备份：防止并发备份的 rename 覆盖与保留份数计数错乱。
+var backupMu sync.Mutex
 
 // BackupContainer 把全部容器配置备份为一个 JSON 文件。
 // 单个容器 inspect 失败不中止整体备份，失败清单通过返回值带回；
@@ -24,6 +28,11 @@ func BackupContainer(ctx *svc.ServiceContext, include ...string) (failures []str
 	if ctx.DockerClient == nil {
 		return nil, fmt.Errorf("Docker 客户端未初始化，请检查 DOCKER_HOST 配置")
 	}
+	// P0：备份互斥。文件名时间戳原为秒级，同秒两次备份（HTTP 与 MCP 并发、
+	// 或前端双击）会让后一次的原子 rename 覆盖前一次；即便文件名已加纳秒，
+	// 也串行化整次备份，保证 BACKUP_KEEP 的份数计数不被并发打乱。
+	backupMu.Lock()
+	defer backupMu.Unlock()
 	containerList, err := GetContainerList(ctx)
 	if err != nil {
 		return nil, err
@@ -135,9 +144,10 @@ func BackupContainer(ctx *svc.ServiceContext, include ...string) (failures []str
 			return failures, err
 		}
 	}
-	// 文件名带时间戳：同一天多次备份互不覆盖，可回退到任一次；
+	// 文件名带时间戳（到纳秒）：同一天/同一秒多次备份互不覆盖，可回退到任一次；
 	// 超出保留份数（BACKUP_KEEP，默认 7）的旧备份自动清理。
-	fileName := "backup-" + time.Now().Format("2006-01-02-150405") + ".json"
+	// 纳秒部分兼容 ResolveBackupPath 的 ^[A-Za-z0-9._-]+$ 文件名白名单与 .json 扩展名判断。
+	fileName := "backup-" + time.Now().Format("2006-01-02-150405.000000000") + ".json"
 	fullPath := filepath.Join(backupDir, fileName)
 	tmp, err := os.CreateTemp(backupDir, ".backup-*.json.tmp")
 	if err != nil {
