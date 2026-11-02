@@ -64,6 +64,15 @@ func main() {
 		}))
 	defer server.Stop()
 	ctx := svc.NewServiceContext(c)
+	// 自身保护探测：拒绝更新/恢复 DTool 自身容器依赖它。判断失败不阻塞启动，
+	// 但必须让人看见——否则保护会静默失效（旧版按镜像名判断，镜像改名后即失效）。
+	if utiles.InContainer() {
+		if selfID := utiles.DetectSelfContainerID(); selfID == "" {
+			logx.Errorf("[自身保护] 运行在容器内但未能识别自身容器 ID：禁止更新/恢复自身的保护已降级，请检查容器运行时（/proc/self/mountinfo、/proc/self/cgroup）")
+		} else {
+			logx.Infof("[自身保护] 已识别自身容器 ID: %s", selfID)
+		}
+	}
 	if ctx.DockerInitErr != nil {
 		logx.Errorf("Docker 客户端初始化失败: %v", ctx.DockerInitErr)
 		logx.Errorf("请检查 DOCKER_HOST、DOCKER_TLS_VERIFY、DOCKER_CERT_PATH 等环境变量")

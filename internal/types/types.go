@@ -25,8 +25,15 @@ type ContainerRestoreReq struct {
 
 type ContainerUpdateReq struct {
 	IdReq
-	ImageNameAndTag string `form:"imageNameAndTag"`
-	ContainerName   string `form:"containerName"`
+	// imageNameAndTag 可选：留空时按容器当前镜像更新（"一键更新"的主路径）。
+	// 此前为必填 form 字段，缺少它会在解析阶段直接返回
+	// "field \"imageNameAndTag\" is not set"，而 UpdateContainer 内部本来
+	// 就支持为空（回落到 inspect 到的 Config.Image）。
+	ImageNameAndTag string `form:"imageNameAndTag,optional" json:"imageNameAndTag,optional"`
+	// json tag 必须带 optional：go-zero 的 Parse 对非 JSON 请求会走
+	// mapping.UnmarshalJsonMap(nil, v)，此时 json tag 为必填就会误报
+	// "field ... is not set"（本字段就踩过：form 请求也被判成缺字段）。
+	ContainerName string `form:"containerName" json:"containerName,optional"`
 }
 
 type CreateContainerReq struct {

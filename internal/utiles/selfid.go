@@ -11,34 +11,58 @@ import (
 )
 
 var (
-	selfContainerIDLong  = regexp.MustCompile(`[0-9a-f]{64}`)
 	selfContainerIDShort = regexp.MustCompile(`^[0-9a-f]{12}$`)
+	// docker 会把 /etc/hostname、/etc/hosts、/etc/resolv.conf 从
+	// /var/lib/docker/containers/<64hex>/ 绑定进容器；这条路径里的 ID 就是容器 ID。
+	// 注意不能直接抓 mountinfo 里第一个 64 位 hex：overlay2 的 upperdir/cache-id
+	// 也是 64 位 hex，但那是层缓存目录名，跟容器 ID 无关。
+	selfContainerMountID = regexp.MustCompile(`containers/([0-9a-f]{64})`)
+	// cgroup v1：/docker/<64hex>；cgroup v2（systemd 驱动）：/docker-<64hex>.scope
+	selfContainerCgroupID = regexp.MustCompile(`docker[-/]([0-9a-f]{64})`)
 )
 
 // DetectSelfContainerID 推断自身进程所在容器的 ID。
-// 优先从 /proc/self/mountinfo 与 /proc/self/cgroup 里提取 docker/containerd
-// 的 64 位长 ID；取不到时回退 HOSTNAME（容器内默认等于 12 位短 ID）。
-// 宿主上裸跑（非容器部署）时返回空字符串，此时所有自身保护判断自动放行。
+// 顺序：mountinfo 的 containers/<id> 绑定 → cgroup 的 docker[-/]<id> → HOSTNAME 短 ID。
+// 宿主上裸跑（非容器部署）时返回空字符串，此时自身保护判断自动放行。
 func DetectSelfContainerID() string {
-	for _, procFile := range []string{"/proc/self/mountinfo", "/proc/self/cgroup"} {
-		data, err := os.ReadFile(procFile)
-		if err != nil {
-			continue
-		}
-		for _, line := range strings.Split(string(data), "\n") {
-			if !strings.Contains(line, "docker") && !strings.Contains(line, "containerd") {
-				continue
-			}
-			// cgroup v2 的段形如 .../docker-<64hex>.scope，v1 形如 .../docker/<64hex>。
-			if id := selfContainerIDLong.FindString(line); id != "" {
-				return id
-			}
-		}
+	var mountinfo, cgroup, hostname string
+	if data, err := os.ReadFile("/proc/self/mountinfo"); err == nil {
+		mountinfo = string(data)
 	}
-	if host := strings.TrimSpace(os.Getenv("HOSTNAME")); selfContainerIDShort.MatchString(host) {
-		return host
+	if data, err := os.ReadFile("/proc/self/cgroup"); err == nil {
+		cgroup = string(data)
+	}
+	hostname = os.Getenv("HOSTNAME")
+	return detectSelfContainerID(mountinfo, cgroup, hostname)
+}
+
+// detectSelfContainerID 是 DetectSelfContainerID 的纯函数内核，便于单测。
+func detectSelfContainerID(mountinfo, cgroup, hostname string) string {
+	if m := selfContainerMountID.FindStringSubmatch(mountinfo); m != nil {
+		return m[1]
+	}
+	if m := selfContainerCgroupID.FindStringSubmatch(cgroup); m != nil {
+		return m[1]
+	}
+	if h := strings.TrimSpace(hostname); selfContainerIDShort.MatchString(h) {
+		return h
 	}
 	return ""
+}
+
+// InContainer 判断当前进程是否运行在容器内，用于 ID 探测失败时的告警。
+func InContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		return true
+	}
+	if data, err := os.ReadFile("/proc/self/mountinfo"); err == nil {
+		// 容器根文件系统是 overlay；宿主上 /proc/self/mountinfo 的根通常是真实块设备。
+		return strings.Contains(string(data), " - overlay overlay ")
+	}
+	return false
 }
 
 // IsSelfContainer 判断 id 是否指向自身容器。
