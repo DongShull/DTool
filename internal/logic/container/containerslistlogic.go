@@ -29,6 +29,17 @@ type Info struct {
 	RunningTime string `json:"runningTime"`
 	HaveUpdate  bool   `json:"haveUpdate"`
 	IsCompose   bool   `json:"isCompose"`
+
+	// 以下是前端渲染列表直接需要的字段（此前要再发 N 次详情请求才能拿到）：
+	ImageName      string   `json:"imageName"`   // 不带 tag 的镜像名
+	ImageTag       string   `json:"imageTag"`    // tag（<none> 表示无 tag）
+	Ports          []string `json:"ports"`       // 形如 "0.0.0.0:13000→3000/tcp"
+	Health         string   `json:"health"`      // healthy / unhealthy / starting；无健康检查为空
+	StateDetail    string   `json:"stateDetail"` // running / exited / paused / created / restarting
+	ComposeProject string   `json:"composeProject"`
+	ComposeService string   `json:"composeService"`
+	CreatedUnix    int64    `json:"createdUnix"`
+	LabelCount     int      `json:"labelCount"`
 }
 
 func NewContainersListLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ContainersListLogic {
@@ -85,6 +96,15 @@ func (l *ContainersListLogic) ContainersList() (resp *types.Resp, err error) {
 		containerInfo.HaveUpdate = v.Update
 		// 由 docker compose 创建的容器带 project 标签，前端可提示优先走 compose 更新
 		containerInfo.IsCompose = v.Labels["com.docker.compose.project"] != ""
+		containerInfo.ComposeProject = v.Labels["com.docker.compose.project"]
+		containerInfo.ComposeService = v.Labels["com.docker.compose.service"]
+		containerInfo.LabelCount = len(v.Labels)
+		containerInfo.CreatedUnix = v.Created
+		containerInfo.StateDetail = v.State
+		containerInfo.Ports = utiles.FormatPorts(v.Ports)
+		containerInfo.ImageName, containerInfo.ImageTag = utiles.SplitImageRef(v.Image)
+		// 健康状态只在 list 响应里存在字符串形式，取不到时留空。
+		containerInfo.Health = utiles.HealthFromStatus(v.Status)
 		containerInfoList = append(containerInfoList, containerInfo)
 	}
 	resp.Data = containerInfoList

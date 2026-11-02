@@ -12,6 +12,7 @@ import (
 	image "github.com/DongShull/DTool/internal/handler/image"
 	progress "github.com/DongShull/DTool/internal/handler/progress"
 	settings "github.com/DongShull/DTool/internal/handler/settings"
+	system "github.com/DongShull/DTool/internal/handler/system"
 	version "github.com/DongShull/DTool/internal/handler/version"
 	"github.com/DongShull/DTool/internal/svc"
 
@@ -204,6 +205,64 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		},
 		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
 		rest.WithPrefix("/api"),
+	)
+
+	// 只读控制面：系统概览、卷、网络、容器详情/日志/资源采样。
+	// 这些是前端从"列表页"进到"详情页"必需的数据，也是 MCP 工具的数据来源。
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/system",
+				Handler: system.OverviewHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/volumes",
+				Handler: system.VolumesHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodDelete,
+				Path:    "/volumes/:name",
+				Handler: system.RemoveVolumeHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/networks",
+				Handler: system.NetworksHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/container/:id/detail",
+				Handler: system.ContainerDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/container/:id/logs",
+				Handler: system.ContainerLogsHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/container/:id/stats",
+				Handler: system.ContainerStatsHandler(serverCtx),
+			},
+		},
+		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
+		rest.WithPrefix("/api"),
+	)
+
+	// Docker 事件流（SSE）：前端用它替代轮询做实时刷新。
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/events",
+				Handler: system.EventsHandler(serverCtx),
+			},
+		},
+		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
+		rest.WithPrefix("/api"),
+		rest.WithSSE(),
 	)
 
 	server.AddRoutes(

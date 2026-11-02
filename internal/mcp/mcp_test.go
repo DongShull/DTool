@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/server"
 	"github.com/DongShull/DTool/internal/config"
 	"github.com/DongShull/DTool/internal/svc"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 func testContext() *svc.ServiceContext {
@@ -30,6 +30,9 @@ var expectedTools = []string{
 	"dt_list_progress", "dt_get_progress", "dt_cancel_progress", "dt_export_progress",
 	"dt_get_settings", "dt_update_settings",
 	"dt_get_version", "dt_check_program_update", "dt_update_program", "dt_get_update_history",
+	// 只读控制面（系统/卷/网络/容器详情与观测）
+	"dt_system_info", "dt_list_volumes", "dt_remove_volume", "dt_list_networks",
+	"dt_container_detail", "dt_container_logs", "dt_container_stats",
 }
 
 func TestAllToolsRegistered(t *testing.T) {

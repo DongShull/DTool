@@ -150,3 +150,49 @@
 
 - `go build ./...` / `go vet ./...` / `go test ./...` / `go test -race ./...` 全绿
 - 容器内实测：版本检查 200（v2.2.0）、`backupDir=/data/config` 与 `/` 被拒、删除 `progress.json` 被拒、SSE 未知任务 404、备份文件名带纳秒、审计出现 backup.create/compose/delete、更新自身被拒、JSON `target` 正确解析（`..` 被拒）、非法 JSON 返回 400、任务占位进度可查
+
+## 七、P10 · 只读控制面（2026-11-02）
+
+把 DTool 从"批量更新器"往"能看清状态的 Docker 控制面"推进的第一步：只读、无副作用，但足够支撑一个详情页。
+
+### 新增 HTTP 接口
+
+| 接口 | 说明 |
+|---|---|
+| `GET /api/system` | Docker 版本、主机信息（CPU/内存/存储驱动/data-root）、磁盘占用与可回收空间拆分 |
+| `GET /api/volumes` | 卷列表 + `inUse`/`usedBy`（用容器挂载反查，未被引用的排前面） |
+| `DELETE /api/volumes/:name?force=` | 删卷（写审计） |
+| `GET /api/networks` | 网络列表：驱动、子网/网关、internal/attachable、每网络容器数 |
+| `GET /api/container/:id/detail` | inspect 摘要：健康、端口、挂载、网络、compose 归属、资源限制；**敏感 env 打码** |
+| `GET /api/container/:id/logs` | 最近 N 行日志（stdcopy 解复用，上限 5000 行） |
+| `GET /api/container/:id/stats` | 一次性资源采样（CPU%/内存/网络/块 IO/进程数） |
+| `GET /api/events` | Docker 事件流 SSE 桥接（10 分钟上限 + 20 秒心跳） |
+
+### 新增 MCP 工具（7 个，共 37）
+
+`dt_system_info`、`dt_list_volumes`、`dt_remove_volume`、`dt_list_networks`、
+`dt_container_detail`、`dt_container_logs`、`dt_container_stats`
+
+### 容器列表字段补齐
+
+`imageName`/`imageTag`、`ports`、`health`、`stateDetail`、`composeProject`/`composeService`、
+`createdUnix`、`labelCount` —— 前端不必再为每个容器各发一次详情请求。
+
+### 实测（容器内，真实 docker.sock）
+
+```
+GET /api/system      → Docker 28.5.2 / API 1.51 / overlay2 / 16 核 / 15.4GB / 可回收 1.3GB
+GET /api/networks    → 4 个网络，bridge 172.17.0.0/16（6 容器）
+GET /api/volumes     → 本机无命名卷（0），接口正常返回
+GET .../detail       → compose 归属、端口、挂载、网络齐全；secretKey=******
+GET .../logs?tail=3  → 解复用后行首干净（修复前是 0x01/0x02 + 乱码）
+GET .../stats        → cpuPercent/memUsage/memPercent/pids 正常
+GET /api/events      → 抓到真实 container 事件（dockercopilot 健康检查 exec）
+无 token 访问新接口   → 全部 401
+```
+
+### 下一步（待办）
+
+- 写能力：`pause/unpause`、镜像 `tag`、`image prune`、`network create/connect`、`exec`（需终端流）
+- 契约治理：统一 `code`、`ErrorHandler` 不再把错误压成 HTTP 200、401 时不再 dump 请求体到日志
+- compose 工程生命周期（list/up/down/logs）

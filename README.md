@@ -87,8 +87,8 @@ services:
 
 ### MCP（推荐给 Agent）
 
-`http://<host>:12712/mcp`，Streamable HTTP，30 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
-进度、设置与自更新。鉴权支持 `Authorization: Bearer <token>`、`X-MCP-Token` 与 `?token=`。
+`http://<host>:12712/mcp`，Streamable HTTP，37 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
+进度、设置、自更新，以及系统/卷/网络/容器观测（只读控制面）。鉴权支持 `Authorization: Bearer <token>`、`X-MCP-Token` 与 `?token=`。
 详见 [docs/MCP.md](docs/MCP.md)。
 
 ### HTTP API
@@ -97,12 +97,20 @@ services:
 - 备份作用域：`DELETE /api/container/backups` 只接受本工具生成的 `backup-*.json` / `backup-*.yaml`；`PUT /api/settings` 的 `backupDir` 拒绝 `/`、`/data/config`、`/data/logs`、`/app`、`/etc` 等目录，避免把删除作用域扩到配置与审计文件。
 - `POST /api/auth` 登录换 JWT（**JSON `{"secretKey":"..."}` 与表单编码 `secretKey=<值>` 都支持**；同一来源连续失败 5 次会限流 15 秒）。注意 update/rename 等接口仍只接受 form/query 参数，restore、settings 接口收 JSON body
 - `GET /api/containers` / `POST /api/container/:id/{start,stop,restart,rename,update}`
+  - 列表已带前端渲染所需字段：`imageName`/`imageTag`、`ports`（如 `0.0.0.0:48199→3002/tcp`）、`health`、`stateDetail`、`composeProject`/`composeService`、`createdUnix`、`labelCount`
 - `GET /api/container/backup` / `GET /api/container/backup2compose` / `POST /api/container/backups/restore`
   - 备份每次生成独立文件（`backup-<时间戳>.json` / `.yaml`），超出 `BACKUP_KEEP` 的旧备份自动清理；响应里的 `failures` 列出本次备份失败的容器
   - restore body：`{"filename":"backup-2026-01-01.json","start":true|false,"force":false}`；`start` 省略时按备份记录的状态恢复；`force=true` 会先停止并临时改名同名容器，新容器创建/启动成功后才删除旧容器，失败会自动回滚
 - `GET /api/images` / `DELETE /api/image/:id`
   - `DELETE /api/images?filter=untagged` 批量删除无 TAG 镜像；`?filter=unused` 批量删除未被容器引用的镜像；响应带 `removed` / `failed` 明细
 - `GET /api/progress` / `GET /api/progress/:taskid` / `POST /api/progress/:taskid/cancel` / `GET /api/progress/:taskid/events`（SSE，请求需带 `Accept: text/event-stream`）
+- `GET /api/system` 系统概览（Docker 版本、主机 CPU/内存/存储驱动/data-root、磁盘占用与可回收空间）
+- `GET /api/volumes` / `DELETE /api/volumes/:name?force=` 数据卷列表（含 `inUse`/`usedBy`）与删除
+- `GET /api/networks` 网络列表（驱动、子网/网关、容器数）
+- `GET /api/container/:id/detail` 容器 inspect 摘要：状态/健康、端口映射、挂载、网络、compose 归属、资源限制；**凭据类环境变量（PASSWORD/TOKEN/SECRET/KEY 等）自动打码**
+- `GET /api/container/:id/logs?tail=200&timestamps=false&since=` 最近 N 行日志（已按 docker 多路复用格式解复用，上限 5000 行）
+- `GET /api/container/:id/stats` 一次性资源采样（CPU%、内存占用/上限、网络收发、块读写、进程数）
+- `GET /api/events`（SSE）Docker 事件流桥接：容器起停/健康/镜像拉取等实时推送，前端可替代轮询；单连接最长 10 分钟，20 秒心跳
 - `GET /api/settings` / `PUT /api/settings`
 - `GET /api/version` / `PUT /api/program`
 - `POST /api/icons` / `GET /api/icons` 自定义镜像 logo（`imageName` → 上传图片文件的映射，持久化在 `/data/config`）

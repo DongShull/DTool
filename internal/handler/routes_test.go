@@ -217,3 +217,40 @@ func waitForServer(t *testing.T, port int) {
 
 	t.Fatalf("server on port %d did not become ready", port)
 }
+
+// TestReadOnlyControlPlaneRequiresJWT 保证新加的只读控制面接口默认都要鉴权：
+// 这些接口会回显容器 env（已打码）、挂载路径与宿主机磁盘信息。
+func TestReadOnlyControlPlaneRequiresJWT(t *testing.T) {
+	port := getFreePort(t)
+	cfg := config.Config{}
+	cfg.Host = "127.0.0.1"
+	cfg.Port = port
+	cfg.Auth.AccessSecret = "test-secret"
+
+	server := rest.MustNewServer(cfg.RestConf)
+	RegisterHandlers(server, &svc.ServiceContext{Config: cfg})
+	defer server.Stop()
+
+	go server.Start()
+	waitForServer(t, port)
+
+	paths := []string{
+		"/api/system",
+		"/api/volumes",
+		"/api/networks",
+		"/api/events",
+		"/api/container/demo/detail",
+		"/api/container/demo/logs",
+		"/api/container/demo/stats",
+	}
+	for _, p := range paths {
+		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d%s", port, p))
+		if err != nil {
+			t.Fatalf("call %s failed: %v", p, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s 无 token 时状态码 = %d, want 401", p, resp.StatusCode)
+		}
+	}
+}
