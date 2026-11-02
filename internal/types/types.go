@@ -158,5 +158,7 @@ type UpdateSettingsReq struct {
 // UpdateProgramReq 程序自更新请求。
 // Target 为空更新到最新版；非空时强制更新到指定版本（允许降级）。
 type UpdateProgramReq struct {
-	Target string `form:"target,optional"`
+	// 必须带 json tag：此前只有 form tag，JSON body 里的 target 会被静默丢弃，
+	// "更新到指定版本"实际变成"更新到最新版"（破坏性且不可撤销）。
+	Target string `form:"target,optional" json:"target,optional"`
 }

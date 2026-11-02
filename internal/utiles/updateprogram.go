@@ -63,8 +63,12 @@ func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 	}
 	defer updateProgramMu.Unlock()
 
-	if strings.Contains(config.Version, "FNOS") || strings.Contains(opts.Target, "FNOS") {
-		return fmt.Errorf("飞牛版本请使用 FNOS 专用发布包更新，禁止覆盖为通用版")
+	if platform, managed := ManagedUpdatePlatform(config.Version); managed {
+		// 专用版二进制与通用版互不兼容：被通用包覆盖后无法自行回退。
+		return fmt.Errorf("%s 版本请使用专用发布包更新，禁止覆盖为通用版", platform)
+	}
+	if platform, managed := ManagedUpdatePlatform(opts.Target); managed {
+		return fmt.Errorf("目标版本 %s 属于 %s 专用包，禁止用通用版覆盖（如需切换请用专用发布包）", opts.Target, platform)
 	}
 	if opts.Target != "" {
 		v, sanitizeErr := SanitizeUpdateTarget(opts.Target)
@@ -117,7 +121,11 @@ func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 	// 2. 构造下载链接
 	downloadURL := fmt.Sprintf("%s/%s/DTool-%s.tar.gz", releaseBaseURL, version, runtime.GOARCH)
 	logx.Info("下载链接：", downloadURL)
-	dest := "DTool.tar.gz"
+	workDir, err := updateWorkDir()
+	if err != nil {
+		return err
+	}
+	dest := filepath.Join(workDir, "DTool.tar.gz")
 	checksumDest := dest + ".sha256"
 	defer func() {
 		_ = os.Remove(dest)
@@ -149,7 +157,7 @@ func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 
 	// 先解压到临时目录，成功后再原子替换；避免解压失败留下半个 DTool-new
 	// 被 start.sh 在下次启动时误当成新版本。
-	tmpDir, err := os.MkdirTemp(".", ".dc-update-")
+	tmpDir, err := os.MkdirTemp(workDir, ".dc-update-")
 	if err != nil {
 		return err
 	}
@@ -167,7 +175,9 @@ func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 	}
 	for _, candidate := range candidates {
 		if info, statErr := os.Stat(candidate); statErr == nil && info.Mode().IsRegular() {
-			if err := os.Rename(candidate, "DTool-new"); err != nil {
+			// start.sh 在 WORKDIR（默认 /app）找 ./DTool-new，所以必须落在二进制同目录，
+			// 否则会出现“历史/审计/通知都说成功、实际没换版”的静默空更新。
+			if err := os.Rename(candidate, filepath.Join(workDir, "DTool-new")); err != nil {
 				return err
 			}
 			logx.Info("解压缩成功")
@@ -177,10 +187,31 @@ func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 	return fmt.Errorf("解压完成但未找到 DTool-new")
 }
 
-const maxUpdateAssetSize = 512 << 20 // 512MB，足够覆盖当前发布包，同时防止异常响应写满磁盘
+const (
+	maxUpdateAssetSize      = 512 << 20 // 512MB：下载包大小上限，防止异常响应写满磁盘
+	maxUpdateFileSize       = 256 << 20 // 256MB：解压后单文件上限
+	maxUpdateTotalSize      = 1 << 30   // 1GB：解压后累计大小上限（正常发布包 ~30MB）
+	maxUpdateArchiveEntries = 10000
+)
 
 func downloadFile(url string, dest string) error {
-	client := &http.Client{Timeout: 10 * time.Minute}
+	client := &http.Client{
+		Timeout: 10 * time.Minute,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return fmt.Errorf("重定向次数过多")
+			}
+			// 禁止 HTTPS 被重定向到明文 HTTP：发布包与校验文件走同一条链，
+			// 降级重定向会让中间人同时替换两者。
+			if req.URL.Scheme != "https" && req.URL.Scheme != "http" {
+				return fmt.Errorf("不支持的重定向协议: %s", req.URL.Scheme)
+			}
+			if req.URL.Scheme == "http" && len(via) > 0 && via[len(via)-1].URL.Scheme == "https" {
+				return fmt.Errorf("拒绝 HTTPS 到 HTTP 的降级重定向")
+			}
+			return nil
+		},
+	}
 	resp, err := client.Get(url)
 	if err != nil {
 		return err
@@ -259,6 +290,11 @@ func decompressTarGz(gzFilePath string, dest string) error {
 
 	tarReader := tar.NewReader(gzr)
 
+	// 只有压缩包大小上限（maxUpdateAssetSize）挡不住 gzip 炸弹：
+	// 解压侧必须自带条目数、单文件与累计解压量限制，否则能写满容器 overlay。
+	var totalWritten int64
+	entryCount := 0
+
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -268,6 +304,10 @@ func decompressTarGz(gzFilePath string, dest string) error {
 			return err
 		}
 
+		entryCount++
+		if entryCount > maxUpdateArchiveEntries {
+			return fmt.Errorf("压缩包条目数超过限制 %d", maxUpdateArchiveEntries)
+		}
 		target := filepath.Join(dest, filepath.FromSlash(header.Name))
 		// 防止 zip-slip：用绝对路径判断，避免 dest="." 时把正常文件全部误判。
 		absDest, err := filepath.Abs(dest)
@@ -292,16 +332,28 @@ func decompressTarGz(gzFilePath string, dest string) error {
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 				return err
 			}
+			if header.Size > maxUpdateFileSize {
+				return fmt.Errorf("包内文件过大: %s (%d 字节)", header.Name, header.Size)
+			}
+			if totalWritten+header.Size > maxUpdateTotalSize {
+				return fmt.Errorf("解压总量超过限制 %d 字节", maxUpdateTotalSize)
+			}
 			outFile, err := os.Create(target)
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(outFile, tarReader); err != nil {
+			written, copyErr := io.Copy(outFile, io.LimitReader(tarReader, maxUpdateFileSize+1))
+			totalWritten += written
+			if copyErr != nil {
 				err := outFile.Close()
 				if err != nil {
 					return err
 				}
-				return err
+				return copyErr
+			}
+			if written > maxUpdateFileSize {
+				_ = outFile.Close()
+				return fmt.Errorf("包内文件超过大小限制: %s", header.Name)
 			}
 			err = outFile.Close()
 			if err != nil {

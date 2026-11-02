@@ -2,12 +2,12 @@ package version
 
 import (
 	"context"
+	"time"
+
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/DongShull/DTool/internal/types"
 	"github.com/DongShull/DTool/internal/utiles"
 	"github.com/zeromicro/go-zero/core/logx"
-	"os"
-	"time"
 )
 
 type UpdateProgramLogic struct {
@@ -60,10 +60,9 @@ func (l *UpdateProgramLogic) UpdateProgram(req *types.UpdateProgramReq) (resp *t
 	// 必须在退出前完成落盘）。
 	utiles.AuditLog("program.update", "self", "program update triggered via HTTP API")
 	utiles.NotifyTaskDone("program", "self", "", true, "程序自更新完成，服务即将重启换入新版本")
-	go func() {
-		time.Sleep(10 * time.Second)
-		os.Exit(1)
-	}()
+	// 退出码 0：start.sh 只把「非 0 且运行不足 30 秒」的退出计为启动失败，
+	// 原来用 os.Exit(1) 时，容器刚起来就点几次更新会触发无谓回退。
+	utiles.ScheduleProcessExit(10 * time.Second)
 	resp.Data = map[string]interface{}{}
 	return resp, nil
 }
