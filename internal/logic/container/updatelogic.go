@@ -2,14 +2,12 @@ package container
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/DongShull/DTool/internal/types"
 	"github.com/DongShull/DTool/internal/utiles"
-	"github.com/google/uuid"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -35,53 +33,27 @@ func (l *UpdateLogic) Update(req *types.ContainerUpdateReq) (resp *types.Resp, e
 	if displayName == "" {
 		displayName = utiles.ResolveContainerName(l.svcCtx, req.Id)
 	}
-	taskID := uuid.New().String()
-	taskCtx := l.svcCtx.RegisterTask(taskID)
-	// 先落一条占位进度：RegisterTask 只登记取消句柄，不写 ProgressStore。
-	// 没有它，任务被同一个容器的锁排在后面时，前端拿到 taskID 立刻查进度会
-	// 得到 "taskID 未找到"，取消接口也会 400。
-	l.svcCtx.UpdateProgress(taskID, svc.TaskProgress{
-		TaskID:    taskID,
-		Name:      displayName,
-		Message:   "任务已排队",
-		DetailMsg: "等待调度：同一容器的更新/恢复串行执行",
-		IsDone:    false,
-	})
-	go func() {
-		// Catch any panic and log the error
-		defer func() {
-			if r := recover(); r != nil {
-				l.Errorf("更新容器任务 panic 已恢复: %v", r)
-				msg := fmt.Sprintf("更新任务异常中断: %v", r)
-				l.svcCtx.UpdateProgress(taskID, svc.TaskProgress{
-					TaskID:     taskID,
-					Percentage: 100,
-					Name:       displayName,
-					Message:    "更新失败",
-					DetailMsg:  msg,
-					IsDone:     true,
-				})
-				utiles.NotifyTaskDone("update", displayName, taskID, false, msg)
-				utiles.AuditLog("container.update", displayName, msg)
-			}
-			l.svcCtx.FinishTask(taskID)
-		}()
+	// RunManagedTask 统一封装：占位进度、panic recover、通知、审计与收尾。
+	// HTTP 链路异步语义：立即返回 taskID，不等待任务完成。
+	taskID, _ := utiles.RunManagedTask(l.svcCtx, l.Logger, utiles.ManagedTaskMeta{
+		Name:        displayName,
+		NotifyKind:  "update",
+		AuditAction: "container.update",
+		// 先落一条占位进度：任务被同一个容器的锁排在后面时，前端拿到 taskID
+		// 立刻查进度也能查到，取消接口也不会 400。
+		Placeholder: svc.TaskProgress{
+			Name:      displayName,
+			Message:   "任务已排队",
+			DetailMsg: "等待调度：同一容器的更新/恢复串行执行",
+		},
+		PanicMessage:   "更新失败",
+		PanicDetailFmt: "更新任务异常中断: %v",
+		DoneFallback:   "更新任务已结束",
+	}, nil, func(taskCtx context.Context, taskID string) error {
 		imageNameAndTag := req.ImageNameAndTag
 		delOldContainer := os.Getenv("DelOldContainer") != "false"
-		err := utiles.UpdateContainer(l.svcCtx, taskCtx, req.Id, displayName, imageNameAndTag, delOldContainer, taskID)
-		if err != nil {
-			l.Errorf("更新容器出错: %v", err)
-		}
-		final, _ := l.svcCtx.GetProgress(taskID)
-		detail := final.DetailMsg
-		if detail == "" {
-			detail = final.Message
-		}
-		utiles.NotifyTaskDone("update", displayName, taskID, err == nil, final.Message)
-		utiles.AuditLog("container.update", displayName, detail)
-	}()
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = map[string]string{"taskID": taskID}
+		return utiles.UpdateContainer(l.svcCtx, taskCtx, req.Id, displayName, imageNameAndTag, delOldContainer, taskID)
+	})
+	resp = types.OK(map[string]string{"taskID": taskID})
 	return resp, nil
 }

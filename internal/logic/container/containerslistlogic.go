@@ -55,12 +55,10 @@ func (l *ContainersListLogic) ContainersList() (resp *types.Resp, err error) {
 	resp = &types.Resp{}
 	list, err := utiles.GetContainerList(l.svcCtx)
 	if err != nil {
-		resp.Code = 500
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeServerError, err.Error(), map[string]interface{}{})
 		return resp, err
 	}
-	resp.Msg = "success"
+	resp = types.OK(nil)
 	var containerInfoList []Info
 	list = utiles.CheckImageUpdate(l.svcCtx, list)
 	for _, v := range list {

@@ -1,9 +1,14 @@
 package utiles
 
 import (
+	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DongShull/DTool/internal/svc"
+	dockerclient "github.com/docker/docker/client"
 )
 
 func TestRestoreShouldStart(t *testing.T) {
@@ -44,5 +49,27 @@ func TestRestoreOldContainerName(t *testing.T) {
 func TestRollbackRestoredContainerNoop(t *testing.T) {
 	if msg := rollbackRestoredContainer(nil, "", "", "", "", false, false); msg != "" {
 		t.Fatalf("rollbackRestoredContainer() = %q, want empty", msg)
+	}
+}
+
+// 回归用例：Restore 曾全程持有全局变更锁（含路径解析、读文件、镜像拉取），
+// 测试先占住变更锁再调用，旧实现会死锁；新实现只在每条目的变更窗口取锁，
+// 文件名非法这类前置校验应立即报错返回。
+func TestRestoreContainerSetupDoesNotTakeMutationLock(t *testing.T) {
+	t.Setenv("PROGRESS_STORE", filepath.Join(t.TempDir(), "progress.json"))
+	unlock := LockContainerMutation()
+	defer unlock()
+
+	cli, err := dockerclient.NewClientWithOpts()
+	if err != nil {
+		t.Skipf("无法构造 Docker 客户端: %v", err)
+	}
+	svcCtx := &svc.ServiceContext{
+		DockerClient:  cli,
+		ProgressStore: make(svc.ProgressStoreType),
+	}
+	err = RestoreContainer(context.Background(), svcCtx, "../illegal-name", "test-task", RestoreOptions{})
+	if err == nil {
+		t.Fatal("RestoreContainer() expected illegal filename error")
 	}
 }

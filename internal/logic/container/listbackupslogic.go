@@ -28,13 +28,9 @@ func (l *ListBackupsLogic) ListBackups() (resp *types.Resp, err error) {
 	resp = &types.Resp{}
 	backupList, err := utiles.BackupList(l.svcCtx)
 	if err != nil {
-		resp.Code = 500
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeServerError, err.Error(), map[string]interface{}{})
 		return resp, err
 	}
-	resp.Msg = "success"
-	resp.Code = 200
-	resp.Data = backupList
+	resp = types.OK(backupList)
 	return resp, nil
 }

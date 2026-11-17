@@ -76,6 +76,40 @@ func IsSelfContainer(selfID, id string) bool {
 	return selfID == id || strings.HasPrefix(selfID, id) || strings.HasPrefix(id, selfID)
 }
 
+// IsSelfTarget 判断目标（容器 ID、短 ID 或容器名）是否指向自身容器。
+// 先做 ID 双向前缀匹配（不依赖 Docker 可用）；未命中时用 Docker Inspect
+// 把目标解析成真实容器 ID 再比对——这样用户传 DTool 容器名（如 "dtool"）
+// 也无法绕过自身保护。inspect 失败（容器不存在、Docker 不可用等）时保守
+// 兜底：用 SelfContainerName 的名字比对，宁可误拒也不放行自杀操作。
+func IsSelfTarget(serviceContext *svc.ServiceContext, idOrName string) bool {
+	selfID := DetectSelfContainerID()
+	if selfID == "" {
+		// 宿主裸跑：无自身容器可言，放行（与 DetectSelfContainerID 语义一致）。
+		return false
+	}
+	target := strings.ToLower(strings.TrimSpace(idOrName))
+	if target == "" {
+		return false
+	}
+	if IsSelfContainer(selfID, target) {
+		return true
+	}
+	if serviceContext == nil || serviceContext.DockerClient == nil {
+		// 没有 Docker 客户端时只能靠 ID 匹配；ID 不匹配则放行。
+		return false
+	}
+	inspectCtx, cancel := dockerTimeout(context.Background(), dockerInspectTimeout)
+	defer cancel()
+	inspected, err := serviceContext.DockerClient.ContainerInspect(inspectCtx, target)
+	if err == nil && strings.TrimSpace(inspected.ID) != "" {
+		// 成功解析出真实容器 ID：以 ID 比对为准（容器名可能被复用，ID 才是本体）。
+		return IsSelfContainer(selfID, inspected.ID)
+	}
+	// inspect 失败，解析不出 ID：按名字兜底比对（restorecontainer 同款先例）。
+	selfName := SelfContainerName(serviceContext)
+	return selfName != "" && selfName == strings.TrimPrefix(target, "/")
+}
+
 // SelfContainerName 返回自身容器名（去掉前导 /）。
 // 不在容器内、Docker 不可用或查询失败时返回空字符串（此时调用方按无保护处理）。
 func SelfContainerName(serviceContext *svc.ServiceContext) string {

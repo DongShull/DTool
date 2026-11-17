@@ -30,3 +30,8 @@ __pycache__/
 /db.sqlite3
 /front/
 /logs/
+# 本地构建缓存（会话构建环境）
+.home/
+.gocache/
+.gohome/
+.gocache/

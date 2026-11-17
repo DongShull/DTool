@@ -30,7 +30,6 @@ func (l *Backup2composeLogic) Backup2compose() (resp *types.Resp, err error) {
 	if err != nil {
 		return nil, err
 	}
-	resp.Code = 200
-	resp.Msg = "success"
+	resp = types.OK(nil)
 	return
 }

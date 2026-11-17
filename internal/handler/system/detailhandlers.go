@@ -56,7 +56,8 @@ func ContainerDetailHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	}
 }
 
-// ContainerLogsHandler 读取容器最近 N 行日志（GET /api/container/{id}/logs?tail=200&timestamps=false&since=）。
+// ContainerLogsHandler 读取容器最近 N 行日志（GET /api/container/{id}/logs?tail=200&timestamps=false&since=&until=）。
+// until 可选：与 since 组成 since..until 闭区间查询（不跟随，一次性读取）。
 func ContainerLogsHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req types.IdReq
@@ -77,7 +78,8 @@ func ContainerLogsHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 				timestamps = parsed
 			}
 		}
-		lines, err := utiles.ContainerLogs(r.Context(), svcCtx, id, tail, timestamps, r.URL.Query().Get("since"))
+		q := r.URL.Query()
+		lines, err := utiles.ContainerLogsRange(r.Context(), svcCtx, id, tail, timestamps, q.Get("since"), q.Get("until"))
 		if err != nil {
 			httpx.WriteJson(w, http.StatusBadRequest, types.Resp{Code: 400, Msg: err.Error()})
 			return
@@ -85,7 +87,7 @@ func ContainerLogsHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		httpx.OkJsonCtx(r.Context(), w, types.Resp{
 			Code: 200,
 			Msg:  "success",
-			Data: map[string]interface{}{"containerId": id, "tail": tail, "lines": lines},
+			Data: map[string]interface{}{"containerId": id, "tail": tail, "since": q.Get("since"), "until": q.Get("until"), "lines": lines},
 		})
 	}
 }

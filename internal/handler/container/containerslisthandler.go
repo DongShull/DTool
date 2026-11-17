@@ -3,19 +3,17 @@ package container
 import (
 	"net/http"
 
+	"github.com/DongShull/DTool/internal/handler/handlerutil"
 	"github.com/DongShull/DTool/internal/logic/container"
 	"github.com/DongShull/DTool/internal/svc"
-	"github.com/zeromicro/go-zero/rest/httpx"
+	"github.com/DongShull/DTool/internal/types"
 )
 
 func ContainersListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		l := container.NewContainersListLogic(r.Context(), svcCtx)
-		resp, err := l.ContainersList()
-		if err != nil {
-			httpx.WriteJson(w, resp.Code, resp)
-		} else {
-			httpx.OkJsonCtx(r.Context(), w, resp)
-		}
+		handlerutil.RunNoReq(w, r, func() (*types.Resp, error) {
+			l := container.NewContainersListLogic(r.Context(), svcCtx)
+			return l.ContainersList()
+		})
 	}
 }

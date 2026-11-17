@@ -11,6 +11,8 @@ import (
 	icons "github.com/DongShull/DTool/internal/handler/icons"
 	image "github.com/DongShull/DTool/internal/handler/image"
 	progress "github.com/DongShull/DTool/internal/handler/progress"
+	compose "github.com/DongShull/DTool/internal/handler/compose"
+	meta "github.com/DongShull/DTool/internal/handler/meta"
 	settings "github.com/DongShull/DTool/internal/handler/settings"
 	system "github.com/DongShull/DTool/internal/handler/system"
 	version "github.com/DongShull/DTool/internal/handler/version"
@@ -251,6 +253,35 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		rest.WithPrefix("/api"),
 	)
 
+	// Compose 工程级控制：聚合列表 / up -d / down / 聚合日志。
+	// up/down 是写操作，审计在 utiles.ComposeProjectAction 内统一落盘。
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/compose/projects",
+				Handler: compose.ProjectsHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/compose/:project/up",
+				Handler: compose.UpHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/compose/:project/down",
+				Handler: compose.DownHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/compose/:project/logs",
+				Handler: compose.LogsHandler(serverCtx),
+			},
+		},
+		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
+		rest.WithPrefix("/api"),
+	)
+
 	// Docker 事件流（SSE）：前端用它替代轮询做实时刷新。
 	server.AddRoutes(
 		[]rest.Route{
@@ -284,6 +315,19 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 		},
 		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
+		rest.WithPrefix("/api"),
+	)
+
+	// /meta 免鉴权独立路由组：只返回版本号与业务码枚举，无敏感信息；
+	// 前端在登录前就需要它渲染错误文案，故不挂 JWT。
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/meta",
+				Handler: meta.MetaHandler(serverCtx),
+			},
+		},
 		rest.WithPrefix("/api"),
 	)
 }

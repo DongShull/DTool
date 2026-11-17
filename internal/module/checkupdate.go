@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	ref "github.com/distribution/reference"
 	"github.com/DongShull/DTool/internal/types"
+	ref "github.com/distribution/reference"
 	"github.com/zeromicro/go-zero/core/logx"
 	"io"
 	"net"
@@ -160,7 +160,11 @@ func BuildManifestURL(image types.Image) (string, error) {
 	return url.String(), nil
 }
 
-func GetDigest(url string, token string) (string, error) {
+// digestHTTPClient 包级复用：镜像更新检查高频调用 GetDigest，原实现每次
+// 都新建 http.Transport 且从不 CloseIdleConnections，空闲连接会持续积压。
+// 复用一个 Client，让空闲连接由 IdleConnTimeout 统一回收；超时/TLS 设置
+// 与原实现一致。
+var digestHTTPClient = func() *http.Client {
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -174,7 +178,11 @@ func GetDigest(url string, token string) (string, error) {
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: os.Getenv("REGISTRY_INSECURE") == "true"},
 	}
-	client := &http.Client{Transport: tr, Timeout: 20 * time.Second}
+	return &http.Client{Transport: tr, Timeout: 20 * time.Second}
+}()
+
+func GetDigest(url string, token string) (string, error) {
+	client := digestHTTPClient
 
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {

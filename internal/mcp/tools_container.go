@@ -3,13 +3,27 @@ package mcp
 import (
 	"context"
 	"os"
+	"strings"
 
-	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/DongShull/DTool/internal/utiles"
 )
+
+// mustStrings 批量读取必填字符串参数：按顺序逐个取 key，
+// 任一缺失/类型不符即返回首个错误，全部成功则按 keys 顺序返回值。
+func mustStrings(args map[string]any, keys ...string) ([]string, error) {
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		v, err := mustString(args, key)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, nil
+}
 
 func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 	s.AddTool(mcp.NewTool("dt_list_containers",
@@ -46,10 +60,11 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		if err = utiles.StartContainer(ctx, id); err != nil {
+		// 与 HTTP 链路一致：幂等启动，运行中直接成功。
+		if err = utiles.EnsureContainerStarted(ctx, id); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		utiles.AuditLog("container.start", id, "started")
+		utiles.AuditLog("container.start", id, "")
 		return textResult("started: " + id), nil
 	})
 
@@ -61,10 +76,11 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		if err = utiles.StopContainer(ctx, id); err != nil {
+		// 与 HTTP 链路一致：幂等停止，已停止直接成功。
+		if err = utiles.EnsureContainerStopped(ctx, id); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		utiles.AuditLog("container.stop", id, "stopped")
+		utiles.AuditLog("container.stop", id, "")
 		return textResult("stopped: " + id), nil
 	})
 
@@ -79,7 +95,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if err = utiles.RestartContainer(ctx, id); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		utiles.AuditLog("container.restart", id, "restarted")
+		utiles.AuditLog("container.restart", id, "")
 		return textResult("restarted: " + id), nil
 	})
 
@@ -89,15 +105,12 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		mcp.WithString("newName", mcp.Required(), mcp.Description("新容器名")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.GetArguments()
-		id, err := mustString(args, "containerId")
+		vals, err := mustStrings(args, "containerId", "newName")
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		newName, err := mustString(args, "newName")
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		if err = utiles.RenameContainer(ctx, id, newName); err != nil {
+		id, newName := vals[0], vals[1]
+		if err := utiles.RenameContainer(ctx, id, newName); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		utiles.AuditLog("container.rename", id, "renamed to "+newName)
@@ -107,7 +120,7 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 	s.AddTool(mcp.NewTool("dt_update_container",
 		mcp.WithDescription("一键更新容器：拉取新镜像 → 停止并改名旧容器 → 克隆配置创建新容器 → 启动并等待健康检查 → 删除旧容器 → 清理旧镜像；任一步失败自动回滚旧容器"),
 		mcp.WithString("containerId", mcp.Required(), mcp.Description("容器 ID")),
-		mcp.WithString("containerName", mcp.Required(), mcp.Description("容器名（用于进度展示与旧容器命名）")),
+		mcp.WithString("containerName", mcp.Description("容器名（用于进度展示与旧容器命名）；不传时按容器 ID 从 daemon 反查")),
 		mcp.WithString("image", mcp.Description("镜像名:tag；不传或留空则使用容器当前镜像拉取最新版本")),
 		mcp.WithBoolean("delOldContainer", mcp.Description("更新成功后是否删除旧容器，默认读取 DelOldContainer 环境变量（默认 true）")),
 	), func(ctx2 context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -116,30 +129,32 @@ func registerContainerTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		name, err := mustString(args, "containerName")
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+		// 与 HTTP 链路（internal/logic/container/updatelogic.go）保持一致：
+		// 名字可缺省，客户端不传时按容器 ID 从 daemon 反查真实名字，
+		// 保证进度列表过滤与审计主体一致。
+		name := strings.TrimSpace(optionalString(args, "containerName"))
+		if name == "" {
+			name = utiles.ResolveContainerName(ctx, id)
 		}
 		// image 可选：留空时 UpdateContainer 会回退到容器当前镜像。
-		image := optionalString(args, "image")
+		image := strings.TrimSpace(optionalString(args, "image"))
 		delOld := optionalBool(args, "delOldContainer", os.Getenv("DelOldContainer") != "false")
 
-		taskID := uuid.New().String()
-		taskCtx := ctx.RegisterTask(taskID)
-		defer ctx.FinishTask(taskID)
-
-		updateErr := utiles.UpdateContainer(ctx, taskCtx, id, name, image, delOld, taskID)
+		// RunManagedTask 统一封装：占位进度（排队期间前端查进度不再 404）、
+		// panic recover、通知、审计与收尾。MCP 链路同步语义：等待完成返回最终进度。
+		taskID, doneCh := utiles.RunManagedTask(ctx, nil, utiles.ManagedTaskMeta{
+			Name:           name,
+			NotifyKind:     "update",
+			AuditAction:    "container.update",
+			Placeholder:    svc.TaskProgress{Name: name, Message: "任务已排队", DetailMsg: "等待调度：同一容器的更新/恢复串行执行"},
+			PanicMessage:   "更新失败",
+			PanicDetailFmt: "更新任务异常中断: %v",
+			DoneFallback:   "更新任务已结束",
+		}, nil, func(taskCtx context.Context, taskID string) error {
+			return utiles.UpdateContainer(ctx, taskCtx, id, name, image, delOld, taskID)
+		})
+		updateErr := <-doneCh
 		final, _ := ctx.GetProgress(taskID)
-		message := final.Message
-		if message == "" {
-			message = "更新任务已结束"
-		}
-		detail := final.DetailMsg
-		if detail == "" {
-			detail = message
-		}
-		utiles.NotifyTaskDone("update", name, taskID, updateErr == nil, message)
-		utiles.AuditLog("container.update", name, detail)
 		if updateErr != nil {
 			return mcp.NewToolResultError(updateErr.Error()), nil
 		}

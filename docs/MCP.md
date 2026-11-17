@@ -34,7 +34,7 @@ curl -H "X-MCP-Token: <token>" ...
 curl "http://127.0.0.1:12712/mcp?token=<token>"
 ```
 
-显式关闭鉴权（**仅限完全隔离的内网**）：
+显式关闭鉴权（**仅限完全隔离的内网**），合法取值为 `off` / `none` / `disabled`（三者等价）：
 
 ```yaml
 environment:
@@ -75,7 +75,7 @@ environment:
 
 ## 4. 工具清单
 
-共 30 个工具，命名统一以 `dt_` 开头。
+共 41 个工具，命名统一以 `dt_` 开头。
 
 ### 通用
 
@@ -96,6 +96,29 @@ environment:
 | `dt_rename_container` | `containerId`, `newName` | 重命名 |
 | `dt_update_container` | `containerId`, `containerName`, `image?`, `delOldContainer?` | 一键更新，全链路回滚；`image` 不传或留空时使用容器当前镜像 |
 | `dt_autoupdate_run` | - | 手动触发一轮自动更新；**前置条件**：`AUTOUPDATE_CRON` 与 `AUTOUPDATE_WHITELIST` 均已配置，否则报错 |
+
+### Compose 工程
+
+按 `com.docker.compose.project` label 聚合的工程级操作；up/down 带**自身护栏**（拒绝作用于 DTool 自身所在工程，拒绝会记审计），project/service 参数做注入校验，执行超时 5 分钟。
+
+| 工具 | 参数 | 说明 |
+|---|---|---|
+| `dt_list_compose_projects` | - | 全部 compose 工程：项目名、服务数、workdir、各服务容器状态 |
+| `dt_compose_up` | `project` | 在工程 workdir 执行 `docker compose up -d`（写审计，action=compose.up） |
+| `dt_compose_down` | `project` | 在工程 workdir 执行 `docker compose down`（写审计，action=compose.down；自身工程被拒） |
+| `dt_compose_logs` | `project`, `service?`, `tail?` | 聚合工程内各服务（或指定服务）日志，按容器分块返回 |
+
+### 观测（只读）
+
+| 工具 | 参数 | 说明 |
+|---|---|---|
+| `dt_system_info` | - | Docker 版本、主机 CPU/内存/存储驱动、磁盘占用与可回收空间 |
+| `dt_list_volumes` | - | 卷列表（含 `inUse`/`usedBy`） |
+| `dt_remove_volume` | `name`, `force?` | 删除卷（写审计） |
+| `dt_list_networks` | - | 网络列表：驱动、子网/网关、每网络容器数 |
+| `dt_container_detail` | `containerId` | inspect 摘要：健康、端口、挂载、网络、compose 归属、资源限制；敏感 env 自动打码 |
+| `dt_container_logs` | `containerId`, `tail?`, `timestamps?`, `since?` | 最近日志（与 HTTP 同源：tail 默认 200、上限 5000） |
+| `dt_container_stats` | `containerId` | 一次性资源采样（CPU%/内存/网络/块 IO/进程数） |
 
 ### 镜像
 
@@ -142,8 +165,8 @@ environment:
 MCP 工具直接复用 `internal/logic` 与 `internal/utiles` 的实现，与 HTTP API 共享同一套
 锁、进度、审计与回滚逻辑，因此两条通道行为一致。
 
-- 更新容器：`dt_update_container` ↔ `POST /api/container/:id/update`
-- 恢复容器：`dt_restore_container` ↔ `POST /api/container/backups/restore`
+- 更新容器：`dt_update_container` ↔ `POST /api/container/:id/update`；与 HTTP 接口不同，MCP 侧经 `RunManagedTask` **同步等待任务完成后**才返回最终进度 JSON。
+- 恢复容器：`dt_restore_container` ↔ `POST /api/container/backups/restore`；同样经 `RunManagedTask` 同步等待完成后返回最终进度 JSON。
 - 进度：`dt_list_progress` ↔ `GET /api/progress`
 
 ## 6. 自检

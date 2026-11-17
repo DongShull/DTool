@@ -35,16 +35,12 @@ func (l *LoginLogic) Login(req *types.LoginReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
 	expected := strings.TrimSpace(l.svcCtx.Config.Auth.AccessSecret)
 	if expected == "" {
-		resp.Code = 500
-		resp.Msg = "服务端未配置 secretKey"
-		resp.Data = JwtResponse{Jwt: ""}
+		resp = types.Fail(types.CodeServerError, "服务端未配置 secretKey", JwtResponse{Jwt: ""})
 		return resp, errors.New("服务端未配置 secretKey")
 	}
 	// 恒定时间比较，避免通过响应时间逐步猜出密钥。
 	if subtle.ConstantTimeCompare([]byte(expected), []byte(strings.TrimSpace(req.SecretKey))) != 1 {
-		resp.Code = 401
-		resp.Msg = "无效的secretKey"
-		resp.Data = JwtResponse{Jwt: ""}
+		resp = types.Fail(types.CodeUnauthorized, "无效的secretKey", JwtResponse{Jwt: ""})
 		return resp, errors.New("无效的secretKey")
 	}
 	jwtToken, err := l.getJwtToken(l.svcCtx.Config.Auth.AccessSecret,
@@ -52,14 +48,10 @@ func (l *LoginLogic) Login(req *types.LoginReq) (resp *types.Resp, err error) {
 		l.svcCtx.Config.Auth.AccessExpire,
 	)
 	if err != nil {
-		resp.Code = 500
-		resp.Msg = "无法生成 token，请重试"
-		resp.Data = JwtResponse{Jwt: ""}
+		resp = types.Fail(types.CodeServerError, "无法生成 token，请重试", JwtResponse{Jwt: ""})
 		return resp, errors.New("生成 token出现错误，请重试")
 	}
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = JwtResponse{Jwt: jwtToken}
+	resp = types.OK(JwtResponse{Jwt: jwtToken})
 	return resp, nil
 }
 

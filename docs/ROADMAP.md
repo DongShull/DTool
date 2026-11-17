@@ -195,4 +195,27 @@ GET /api/events      → 抓到真实 container 事件（dockercopilot 健康检
 
 - 写能力：`pause/unpause`、镜像 `tag`、`image prune`、`network create/connect`、`exec`（需终端流）
 - 契约治理：统一 `code`、`ErrorHandler` 不再把错误压成 HTTP 200、401 时不再 dump 请求体到日志
-- compose 工程生命周期（list/up/down/logs）
+- ~~compose 工程生命周期（list/up/down/logs）~~ → 已在 P11 完成
+
+## 八、P11 · Compose 工程生命周期 + 更新链加固（2026-11-17）
+
+三项并行改造（经子代理分工与集成验收，`go build/vet/test` 全绿）。
+
+### Compose 工程控制（新）
+
+- HTTP：`GET /api/compose/projects`、`POST /api/compose/:project/{up,down}`、`GET /api/compose/:project/logs?service=&tail=`
+- MCP 新增 4 工具（总数 37→41）：`dt_list_compose_projects`、`dt_compose_up`、`dt_compose_down`、`dt_compose_logs`
+- 安全：up/down 拒绝作用于 DTool 自身所在工程（`SelfComposeProject` + 审计 rejected）；project/service 走 `ComposeSafeToken` 注入校验；执行超时 5 分钟；action=compose.up/compose.down 写审计，HTTP 与 MCP 共用
+
+### 更新/启停链路加固
+
+- `internal/utiles/updatecontainer.go`：`ContainerState` 类型修正、回滚路径强化、自身保护（12 位短 ID 命中 HOSTNAME 兜底）
+- start/stop 新增 `EnsureContainerStarted` / `EnsureContainerStopped` 幂等（paused 特判），MCP 与 HTTP 共用
+- `dt_update_container`：容器名可选（`ResolveContainerName` 兜底）+ 指定镜像 tag，异步语义对齐 HTTP
+- 新增测试覆盖：回滚路径、指定 tag、幂等、自身保护（全 mock）
+
+### 日志查询增强
+
+- `utiles.ContainerLogsRange(ctx, svc, id, tail, timestamps, since, until)`：since..until 闭区间查询；`ContainerLogs` 委托保持原签名，调用方零改动
+- HTTP `GET /api/container/:id/logs` 新增可选 `until` 参数
+- 日志解复用/tail 边界补 6 个单测

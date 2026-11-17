@@ -124,9 +124,6 @@ func formatBaseServiceConfig(containerJSON dockerTypes.ContainerJSON, s *compose
 		s.StdinOpen = cfg.OpenStdin
 		s.User = cfg.User
 		s.DomainName = cfg.Domainname
-		if cfg.MacAddress != "" {
-			s.MacAddress = cfg.MacAddress
-		}
 		// 容器默认 hostname 是容器 ID；导出成固定值会在重建时变成旧 ID，
 		// 只有用户显式设置了 hostname 才写入 compose。
 		if cfg.Hostname != "" && !sameShortID(cfg.Hostname, containerJSON.ID) {
@@ -153,13 +150,26 @@ func formatBaseServiceConfig(containerJSON dockerTypes.ContainerJSON, s *compose
 	}
 	s.ContainerName = name
 	s.Name = name
+	// Config.MacAddress 已废弃（SA1019）：inspect 后的 MAC 在网络端点设置里，
+	// 优先取默认网络，否则取第一个非空端点。
+	if containerJSON.NetworkSettings != nil {
+		if ep, ok := containerJSON.NetworkSettings.Networks["default"]; ok && ep != nil && ep.MacAddress != "" {
+			s.MacAddress = ep.MacAddress
+		} else {
+			for _, ep := range containerJSON.NetworkSettings.Networks {
+				if ep != nil && ep.MacAddress != "" {
+					s.MacAddress = ep.MacAddress
+					break
+				}
+			}
+		}
+	}
 	if containerJSON.HostConfig != nil {
 		formatHostConfig(containerJSON.HostConfig, containerJSON.Config, s)
 	}
 	if containerJSON.Platform != "" {
 		s.Platform = containerJSON.Platform
 	}
-	return
 }
 
 func formatHostConfig(h *container.HostConfig, cfg *container.Config, s *composeType.ServiceConfig) {

@@ -27,13 +27,9 @@ func (l *CancelProgressLogic) CancelProgress(req *types.GetProgressReq) (resp *t
 	resp = &types.Resp{}
 	ok, msg := l.svcCtx.CancelActiveTask(req.TaskId)
 	if !ok {
-		resp.Code = 400
-		resp.Msg = msg
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeBadRequest, msg, map[string]interface{}{})
 		return resp, nil
 	}
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = map[string]interface{}{"taskID": req.TaskId}
+	resp = types.OK(map[string]interface{}{"taskID": req.TaskId})
 	return resp, nil
 }

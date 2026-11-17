@@ -33,6 +33,8 @@ var expectedTools = []string{
 	// 只读控制面（系统/卷/网络/容器详情与观测）
 	"dt_system_info", "dt_list_volumes", "dt_remove_volume", "dt_list_networks",
 	"dt_container_detail", "dt_container_logs", "dt_container_stats",
+	// Compose 工程级控制
+	"dt_list_compose_projects", "dt_compose_up", "dt_compose_down", "dt_compose_logs",
 }
 
 func TestAllToolsRegistered(t *testing.T) {

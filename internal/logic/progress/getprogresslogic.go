@@ -28,20 +28,16 @@ func (l *GetProgressLogic) GetProgress(req *types.GetProgressReq) (resp *types.R
 	//progress, exists := l.svcCtx.ProgressStore[req.TaskId]
 	progress, exists := l.svcCtx.GetProgress(req.TaskId)
 	if !exists {
-		resp.Code = 400
-		resp.Msg = "taskID 未找到"
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeBadRequest, "taskID 未找到", map[string]interface{}{})
 		return
 	}
-	resp.Code = 200
-	resp.Msg = progress.Message
-	resp.Data = map[string]interface{}{
+	resp = types.OK(map[string]interface{}{
 		"taskID":     progress.TaskID,
 		"percentage": progress.Percentage,
 		"message":    progress.Message,
 		"name":       progress.Name,
 		"detailMsg":  progress.DetailMsg,
 		"isDone":     progress.IsDone,
-	}
+	}, progress.Message)
 	return resp, nil
 }

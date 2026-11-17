@@ -10,6 +10,11 @@ const (
 	dockerInspectTimeout   = 60 * time.Second
 	dockerMutationTimeout  = 2 * time.Minute
 	dockerNegotiateTimeout = 30 * time.Second
+
+	// waitForContainerHealthy：健康检查最长等待、无健康检查时的稳定观察窗口、轮询间隔。
+	dockerHealthWaitTimeout  = 90 * time.Second
+	dockerStableWindow       = 2 * time.Second
+	dockerHealthPollInterval = time.Second
 )
 
 // dockerTimeout 给单次 Docker API 调用加超时。

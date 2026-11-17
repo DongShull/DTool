@@ -3,19 +3,17 @@ package image
 import (
 	"net/http"
 
+	"github.com/DongShull/DTool/internal/handler/handlerutil"
 	"github.com/DongShull/DTool/internal/logic/image"
 	"github.com/DongShull/DTool/internal/svc"
-	"github.com/zeromicro/go-zero/rest/httpx"
+	"github.com/DongShull/DTool/internal/types"
 )
 
 func ImagesListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		l := image.NewImagesListLogic(r.Context(), svcCtx)
-		resp, err := l.ImagesList()
-		if err != nil {
-			httpx.WriteJson(w, resp.Code, resp)
-		} else {
-			httpx.WriteJson(w, resp.Code, resp)
-		}
+		handlerutil.RunNoReq(w, r, func() (*types.Resp, error) {
+			l := image.NewImagesListLogic(r.Context(), svcCtx)
+			return l.ImagesList()
+		})
 	}
 }

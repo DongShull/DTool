@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -54,16 +55,22 @@ type composeLabels struct {
 }
 
 func composeLabelsFrom(inspected *dockerTypes.ContainerJSON) composeLabels {
-	l := composeLabels{}
 	if inspected == nil || inspected.Config == nil {
-		return l
+		return composeLabels{}
 	}
-	labels := inspected.Config.Labels
-	l.Project = labels["com.docker.compose.project"]
-	l.Service = labels["com.docker.compose.service"]
-	l.WorkingDir = labels["com.docker.compose.project.working_dir"]
-	l.ConfigFile = labels["com.docker.compose.project.config_files"]
-	return l
+	return ComposeLabelsOf(inspected.Config.Labels)
+}
+
+// ComposeLabelsOf 从 compose 标签 map 提取路由所需标签。
+// compose 标签的键名字符串全项目只在这一处定义；容器列表（composeproject.go）
+// 与容器 inspect（composeLabelsFrom）共用它，避免三处重复。
+func ComposeLabelsOf(labels map[string]string) composeLabels {
+	return composeLabels{
+		Project:    labels["com.docker.compose.project"],
+		Service:    labels["com.docker.compose.service"],
+		WorkingDir: labels["com.docker.compose.project.working_dir"],
+		ConfigFile: labels["com.docker.compose.project.config_files"],
+	}
 }
 
 // routable 判断标签是否足以支撑 compose 更新：项目、服务、工作目录缺一不可。
@@ -77,27 +84,30 @@ func (l composeLabels) routable() bool {
 // composeCommand 探测宿主可用的 compose 入口。
 // 优先 docker compose（v2 插件），回退 docker-compose（v1 独立二进制）。
 // 返回 (命令前缀, 是否可用)。
+// composeProbeTimeout 是 compose 探测命令（compose version）的上限。
+// docker CLI 在某些环境下会挂死（如 daemon 不可达时插件初始化卡住），
+// 无超时的探测会拖住更新链路。
+const composeProbeTimeout = 5 * time.Second
+
 func composeCommand() ([]string, bool) {
 	if _, err := exec.LookPath("docker"); err == nil {
-		probe := exec.Command("docker", "compose", "version", "--short")
-		if finishProbe(probe, 15*time.Second) {
+		if finishProbe("docker", []string{"compose", "version", "--short"}) {
 			return []string{"docker", "compose"}, true
 		}
 	}
 	if _, err := exec.LookPath("docker-compose"); err == nil {
-		probe := exec.Command("docker-compose", "version", "--short")
-		if finishProbe(probe, 15*time.Second) {
+		if finishProbe("docker-compose", []string{"version", "--short"}) {
 			return []string{"docker-compose"}, true
 		}
 	}
 	return nil, false
 }
 
-// finishProbe 带超时地运行探测命令。
-func finishProbe(cmd *exec.Cmd, timeout time.Duration) bool {
-	timer := time.AfterFunc(timeout, func() { _ = cmd.Process.Kill() })
-	defer timer.Stop()
-	return cmd.Run() == nil
+// finishProbe 带超时地运行探测命令（exec.CommandContext，超时自动 kill）。
+func finishProbe(bin string, args []string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), composeProbeTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, bin, args...).Run() == nil
 }
 
 // composeSafeTokenRE 校验标签值可以安全地作为命令行参数传递。
@@ -115,6 +125,31 @@ func ComposeCommandPublic() ([]string, bool) {
 	return composeCommand()
 }
 
+// composeConfigFileArgs 从 config_files 标签构造 -f 参数序列。
+// 标签值按冒号分隔多文件；每个路径要求是绝对路径且当前进程可见（os.Stat），
+// 任一校验失败即报错——宁可拒绝执行，也不让 compose 在错误的工作目录里
+// 按默认文件名猜配置、更新到错误的项目。参数走 exec 数组，不进 shell。
+func composeConfigFileArgs(configFiles string) ([]string, error) {
+	if strings.TrimSpace(configFiles) == "" {
+		return nil, nil
+	}
+	var args []string
+	for _, f := range strings.Split(configFiles, ":") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !filepath.IsAbs(f) {
+			return nil, fmt.Errorf("compose config_files 含相对路径 %q，拒绝执行（标签值: %s）", f, configFiles)
+		}
+		if info, err := os.Stat(f); err != nil || info.IsDir() {
+			return nil, fmt.Errorf("compose 文件 %q 在 DTool 进程内不可见或不是普通文件，拒绝执行（标签值: %s）", f, configFiles)
+		}
+		args = append(args, "-f", f)
+	}
+	return args, nil
+}
+
 // composeServiceUpdate 对单个服务执行 compose pull + up -d。
 // workingDir 即容器标签里的 project.working_dir；DTool 通常以宿主根目录
 // 挂载或直接运行在宿主上，相对路径按进程工作目录解析由 compose 自行处理。
@@ -128,9 +163,13 @@ func composeServiceUpdate(ctx context.Context, l composeLabels, forceRecreate bo
 	if !composeSafeToken(l.Project) || !composeSafeToken(l.Service) {
 		return "", fmt.Errorf("compose 标签含非法字符，拒绝执行（project=%q service=%q）", l.Project, l.Service)
 	}
+	fileArgs, err := composeConfigFileArgs(l.ConfigFile)
+	if err != nil {
+		return "", err
+	}
 
 	run := func(args ...string) (string, error) {
-		cmdArgs := append(append([]string{}, base...), args...)
+		cmdArgs := append(append(append([]string{}, base...), fileArgs...), args...)
 		cmd := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 		cmd.Dir = l.WorkingDir
 		cmd.Env = append(os.Environ(),
@@ -156,11 +195,16 @@ func composeServiceUpdate(ctx context.Context, l composeLabels, forceRecreate bo
 }
 
 // tryComposeUpdate 尝试 compose 链路更新；返回 (是否已由 compose 完成, 输出, 错误)。
-// 标签不齐或 compose 不可用时返回 completed=false 且 err=nil，由调用方走容器链路。
+// 标签不齐或宿主根本没有 compose CLI 时返回 completed=false 且 err=nil，
+// 由调用方走容器链路兜底；compose CLI 存在但执行失败时返回明确错误，
+// 不再静默降级（防止 compose 管理的容器脱离 compose 管控）。
 func tryComposeUpdate(ctx context.Context, serviceContext *svc.ServiceContext, inspected *dockerTypes.ContainerJSON, containerName, taskID string) (completed bool, output string, err error) {
 	labels := composeLabelsFrom(inspected)
 	if !labels.routable() {
 		return false, "容器缺少 compose 项目/服务标签", nil
+	}
+	if _, ok := composeCommand(); !ok {
+		return false, "宿主环境没有可用的 docker compose，按容器方式更新兜底", nil
 	}
 	strategy := ComposeUpdateStrategy()
 	if strategy == ComposeStrategyContainer {
@@ -184,10 +228,22 @@ func tryComposeUpdate(ctx context.Context, serviceContext *svc.ServiceContext, i
 		return true, out, nil
 	}
 	if strategy == ComposeStrategyOnly {
-		return true, out, fmt.Errorf("compose 更新失败（COMPOSE_UPDATE=compose-only 不回退）: %w", execErr)
+		return true, out, fmt.Errorf("该容器由 compose 管理，compose 更新失败，请检查 compose 配置（COMPOSE_UPDATE=compose-only 不回退）: %w；compose 输出摘要: %s", execErr, composeOutputSummary(out))
 	}
-	logx.Errorf("compose 更新失败，回退容器链路: %v\n%s", execErr, out)
-	return false, "compose 更新失败，将回退容器方式兜底: " + execErr.Error(), nil
+	// compose 管理的容器不再静默降级到 stop→rename→create 的容器重建：
+	// 那会让容器脱离 compose 管控、与 1Panel 等面板状态反复打架。
+	// 失败时直接返回明确错误，并附上 compose 输出摘要方便排查。
+	logx.Errorf("compose 更新失败: %v\n%s", execErr, out)
+	return true, out, fmt.Errorf("该容器由 compose 管理，compose 更新失败，请检查 compose 配置: %w；compose 输出摘要: %s", execErr, composeOutputSummary(out))
+}
+
+// composeOutputSummary 把 compose 输出压成单行摘要（错误信息用，防止刷屏）。
+func composeOutputSummary(out string) string {
+	line := strings.Join(strings.Fields(strings.TrimSpace(out)), " ")
+	if len(line) > 300 {
+		line = line[:300] + "…"
+	}
+	return line
 }
 
 // EnsureComposeCli 在 PATH 里找不到 compose 时给出明确指引的报错文案。

@@ -33,7 +33,7 @@ func BackupContainer(ctx *svc.ServiceContext, include ...string) (failures []str
 	// 也串行化整次备份，保证 BACKUP_KEEP 的份数计数不被并发打乱。
 	backupMu.Lock()
 	defer backupMu.Unlock()
-	if dir, reason := CheckBackupDirSafe(); dir != "" && reason != "" {
+	if _, reason := CheckBackupDirSafe(); reason != "" {
 		return nil, fmt.Errorf("%s", reason)
 	}
 	containerList, err := GetContainerList(ctx)

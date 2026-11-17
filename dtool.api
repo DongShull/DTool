@@ -234,3 +234,22 @@ service DTool {
 	@handler obtain
 	get / returns (Resp)
 }
+
+@server(
+	prefix: /api
+	group: compose
+	jwt: Auth
+)
+service DTool {
+	@handler composeProjects
+		get /compose/projects returns (Resp)
+
+	@handler composeUp
+		post /compose/:project/up (ComposeProjectNameReq) returns (Resp)
+
+	@handler composeDown
+		post /compose/:project/down (ComposeProjectNameReq) returns (Resp)
+
+	@handler composeLogs
+		get /compose/:project/logs (ComposeLogsReq) returns (Resp)
+}

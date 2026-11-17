@@ -81,13 +81,13 @@ services:
 | `AUDIT_LOG` | /data/logs/audit.jsonl | 审计日志（JSON Lines） |
 | `AUTOUPDATE_CRON` | 空 | 自动更新周期（cron 表达式，空=关闭），如 `0 4 * * *` |
 | `AUTOUPDATE_WHITELIST` | 空 | 自动更新容器白名单（逗号分隔；`*` 表示全部有更新的容器） |
-| `MCP_TOKEN` | 空 | `/mcp` 的访问令牌；为空时回退到 `secretKey`。设为 `off` 可关闭鉴权，**但仅允许在端口绑定回环（127.0.0.1）时使用**，其它监听地址会拒绝启动（`/mcp` 等价于 Docker 控制面，未鉴权对外等于宿主 root） |
+| `MCP_TOKEN` | 空 | `/mcp` 的访问令牌；为空时回退到 `secretKey`。设为 `off` / `none` / `disabled`（三者等价）可关闭鉴权，**但仅允许在端口绑定回环（127.0.0.1）时使用**，其它监听地址会拒绝启动（`/mcp` 等价于 Docker 控制面，未鉴权对外等于宿主 root） |
 
 ## 接入方式
 
 ### MCP（推荐给 Agent）
 
-`http://<host>:12712/mcp`，Streamable HTTP，37 个 `dt_*` 工具覆盖容器、镜像、备份恢复、
+`http://<host>:12712/mcp`，Streamable HTTP，41 个 `dt_*` 工具覆盖容器、镜像、Compose 工程、备份恢复、
 进度、设置、自更新，以及系统/卷/网络/容器观测（只读控制面）。鉴权支持 `Authorization: Bearer <token>`、`X-MCP-Token` 与 `?token=`。
 详见 [docs/MCP.md](docs/MCP.md)。
 
@@ -111,6 +111,10 @@ services:
 - `GET /api/container/:id/logs?tail=200&timestamps=false&since=` 最近 N 行日志（已按 docker 多路复用格式解复用，上限 5000 行）
 - `GET /api/container/:id/stats` 一次性资源采样（CPU%、内存占用/上限、网络收发、块读写、进程数）
 - `GET /api/events`（SSE）Docker 事件流桥接：容器起停/健康/镜像拉取等实时推送，前端可替代轮询；单连接最长 10 分钟，20 秒心跳
+- `GET /api/compose/projects` compose 工程列表（项目名、服务数、workdir、各服务状态）
+- `POST /api/compose/:project/up` / `POST /api/compose/:project/down` 工程级 up/down（在 workdir 执行 compose cli；自身工程拒绝，参数防注入，写审计，超时 5 分钟）
+- `GET /api/compose/:project/logs?service=&tail=` 工程聚合日志（可按服务过滤）
+- `GET /api/container/:id/logs` 新增可选 `until` 参数：与 `since` 组成闭区间一次性查询
 - `GET /api/settings` / `PUT /api/settings`
 - `GET /api/version` / `PUT /api/program`
 - `POST /api/icons` / `GET /api/icons` 自定义镜像 logo（`imageName` → 上传图片文件的映射，持久化在 `/data/config`）

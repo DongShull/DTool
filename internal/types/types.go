@@ -162,3 +162,70 @@ type UpdateProgramReq struct {
 	// "更新到指定版本"实际变成"更新到最新版"（破坏性且不可撤销）。
 	Target string `form:"target,optional" json:"target,optional"`
 }
+
+// ── 统一响应信封契约（全项目唯一，前端请以本文档为准）──────────────
+//
+// 所有 HTTP 接口的响应体都是同一个信封：
+//
+//	{"code": <int 业务码>, "msg": <string>, "data": <T>}
+//
+// 规则：
+//   - 成功恒为 code=200（CodeOK）且 msg="success"；错误码一律使用下方
+//     CodeXxx 常量，禁止在任何业务代码里散落裸数字。
+//   - OK(data) / Fail(code, msg, data...) 是构造信封的唯一入口。
+//   - 错误响应的 data 通常为 {}，可能携带补充字段（如 failures）。
+//   - 枚举含义与默认文案的自描述元数据由 /api/meta（logic/meta）返回，
+//     前端不得硬编码任何码值含义或文案。
+//
+// 详细规范见 docs/API-RESPONSE.md。
+// 业务状态码：resp.Code 会被 handler 直接当作 HTTP 状态码写入，
+// 因此不能超过 999（见 internal/logic/version/versionlogic.go 中的注释）。
+const (
+	// CodeOK 成功。
+	CodeOK = 200
+	// CodePartial 部分成功：多目标任务中存在失败项（备份/清理部分失败）。
+	CodePartial = 207
+	// CodeBadRequest 请求参数错误或目标资源不存在。
+	CodeBadRequest = 400
+	// CodeUnauthorized 鉴权失败（如 secretKey 无效）。
+	CodeUnauthorized = 401
+	// CodeForbidden 无权执行该操作（如程序自更新被禁用）。
+	CodeForbidden = 403
+	// CodeConflict 资源状态冲突（如镜像仍被容器引用而无法删除）。
+	CodeConflict = 409
+	// CodeServerError 服务端内部错误。
+	CodeServerError = 500
+)
+
+// OK 构造成功响应，Msg 默认为 "success"；需要自定义 Msg 时通过 msg 传入。
+func OK(data interface{}, msg ...string) *Resp {
+	m := "success"
+	if len(msg) > 0 {
+		m = msg[0]
+	}
+	return &Resp{Code: CodeOK, Msg: m, Data: data}
+}
+
+// Fail 构造失败响应；需要携带 Data 时通过 data 传入（不传则为 nil）。
+func Fail(code int, msg string, data ...interface{}) *Resp {
+	var d interface{}
+	if len(data) > 0 {
+		d = data[0]
+	}
+	return &Resp{Code: code, Msg: msg, Data: d}
+}
+
+// CodeInfo 单个业务码的自描述信息，随 /api/meta 下发给前端展示。
+type CodeInfo struct {
+	Code       int    `json:"code"`       // 业务码数值
+	Meaning    string `json:"meaning"`    // 中文含义
+	DefaultMsg string `json:"defaultMsg"` // 该码的默认 msg 文案
+}
+
+// MetaInfo 后端自描述元数据：版本信息 + 全部业务码枚举。
+// 前端不得硬编码码值含义或文案，一切以此接口返回为准。
+type MetaInfo struct {
+	Version   string     `json:"version"`   // 后端版本号
+	BuildDate string     `json:"buildDate"` // 构建时间
+	Codes     []CodeInfo `json:"codes"`    // 全部业务码枚举
+}

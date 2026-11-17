@@ -25,16 +25,13 @@ func NewStartLogic(ctx context.Context, svcCtx *svc.ServiceContext) *StartLogic 
 
 func (l *StartLogic) Start(req *types.IdReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
-	err = utiles.StartContainer(l.svcCtx, req.Id)
+	// 幂等启动：运行中直接成功，paused 报明确错误，避免 Docker 304 类错误被当作失败。
+	err = utiles.EnsureContainerStarted(l.svcCtx, req.Id)
 	if err != nil {
-		resp.Code = 400
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeBadRequest, err.Error(), map[string]interface{}{})
 		return resp, err
 	}
 	utiles.AuditLog("container.start", req.Id, "")
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = map[string]interface{}{}
+	resp = types.OK(map[string]interface{}{})
 	return resp, nil
 }

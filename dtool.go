@@ -151,9 +151,13 @@ export const customImageLogos = {
 				Msg:  e.Msg,
 			}
 		default:
-			return http.StatusOK, xhttp.BaseResponse[types.Nil]{
-				Code: 50000,
+			// 参数缺失/格式错误等解析错误：按 docs/API.md 全局约定返回
+			// HTTP 400 + body.code=400；data 恒为 {}，保证信封
+			// {"code","msg","data"} 三字段完整。
+			return http.StatusBadRequest, types.Resp{
+				Code: types.CodeBadRequest,
 				Msg:  err.Error(),
+				Data: types.Nil{},
 			}
 		}
 	})

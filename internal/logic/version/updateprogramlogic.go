@@ -27,9 +27,7 @@ func NewUpdateProgramLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Upd
 func (l *UpdateProgramLogic) UpdateProgram(req *types.UpdateProgramReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
 	if utiles.UpdateProgramDisabled() {
-		resp.Code = 403
-		resp.Msg = utiles.ErrUpdateProgramDisabled.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeForbidden, utiles.ErrUpdateProgramDisabled.Error(), map[string]interface{}{})
 		return resp, nil
 	}
 	target := ""
@@ -38,9 +36,7 @@ func (l *UpdateProgramLogic) UpdateProgram(req *types.UpdateProgramReq) (resp *t
 	}
 	if target != "" {
 		if _, chkErr := utiles.SanitizeUpdateTarget(target); chkErr != nil {
-			resp.Code = 400
-			resp.Msg = chkErr.Error()
-			resp.Data = map[string]interface{}{}
+			resp = types.Fail(types.CodeBadRequest, chkErr.Error(), map[string]interface{}{})
 			return resp, nil
 		}
 	}
@@ -49,13 +45,10 @@ func (l *UpdateProgramLogic) UpdateProgram(req *types.UpdateProgramReq) (resp *t
 		Manual: true,
 	})
 	if err != nil {
-		resp.Code = 500
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeServerError, err.Error(), map[string]interface{}{})
 		return resp, err
 	}
-	resp.Code = 200
-	resp.Msg = "success"
+	resp = types.OK(nil)
 	// 与 MCP 通道保持一致：自更新成功也要留审计与通知（进程 10 秒后退出，
 	// 必须在退出前完成落盘）。
 	utiles.AuditLog("program.update", "self", "program update triggered via HTTP API")

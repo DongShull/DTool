@@ -28,19 +28,13 @@ func NewRemoveLogic(ctx context.Context, svcCtx *svc.ServiceContext) *RemoveLogi
 func (l *RemoveLogic) Remove(req *types.RemoveImageReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
 	var imageId = req.Id
-	if strings.HasPrefix(imageId, "sha256:") {
-		imageId = strings.TrimPrefix(imageId, "sha256:")
-	}
+	imageId = strings.TrimPrefix(imageId, "sha256:")
 	err = utiles.RemoveImage(l.svcCtx, imageId, req.Force)
 	if err != nil {
-		resp.Code = 409
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeConflict, err.Error(), map[string]interface{}{})
 		return resp, nil
 	}
 	utiles.AuditLog("image.remove", req.Id, "")
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = map[string]interface{}{}
+	resp = types.OK(map[string]interface{}{})
 	return resp, nil
 }

@@ -40,8 +40,15 @@ type UpdateOptions struct {
 func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 	fromVersion := config.Version
 	targetVersion := ""
+	if !updateProgramMu.TryLock() {
+		// 并发重入不算一次更新尝试：不写历史、不发失败通知，
+		// 避免"失败告警"里出现假失败。
+		return ErrUpdateProgramRunning
+	}
+	defer updateProgramMu.Unlock()
 	defer func() {
 		// 统一记录更新历史：成功失败都记，手动/自动区分；失败时额外发通知。
+		// 只在 TryLock 成功后注册，ErrUpdateProgramRunning 不会走到这里。
 		AppendUpdateHistory(UpdateHistoryEntry{
 			FromVersion: fromVersion,
 			ToVersion:   targetVersion,
@@ -58,10 +65,6 @@ func UpdateProgram(ctx *svc.ServiceContext, opts UpdateOptions) (err error) {
 			NotifyTaskDone("program-update", fromVersion, "", false, "程序自更新失败: "+err.Error())
 		}
 	}()
-	if !updateProgramMu.TryLock() {
-		return ErrUpdateProgramRunning
-	}
-	defer updateProgramMu.Unlock()
 
 	if platform, managed := ManagedUpdatePlatform(config.Version); managed {
 		// 专用版二进制与通用版互不兼容：被通用包覆盖后无法自行回退。

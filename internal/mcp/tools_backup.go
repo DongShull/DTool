@@ -7,7 +7,6 @@ import (
 
 	"github.com/DongShull/DTool/internal/svc"
 	"github.com/DongShull/DTool/internal/utiles"
-	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -123,26 +122,25 @@ func registerBackupTools(s *server.MCPServer, ctx *svc.ServiceContext) {
 			nameMap = m
 		}
 
-		taskID := uuid.New().String()
-		taskCtx := ctx.RegisterTask(taskID)
-		defer ctx.FinishTask(taskID)
-
-		restoreErr := utiles.RestoreContainer(taskCtx, ctx, filepath.Base(fullPath), taskID, utiles.RestoreOptions{
-			StartOverride: startOverride,
-			Force:         force,
-			NameMap:       nameMap,
+		// RunManagedTask 统一封装：占位进度（排队期间前端查进度不再 404）、
+		// panic recover、通知、审计与收尾。MCP 链路同步语义：等待完成返回最终进度。
+		taskID, doneCh := utiles.RunManagedTask(ctx, nil, utiles.ManagedTaskMeta{
+			Name:           "恢复容器",
+			NotifyKind:     "restore",
+			AuditAction:    "container.restore",
+			Placeholder:    svc.TaskProgress{Name: "恢复容器", Message: "任务已排队", DetailMsg: "等待上一轮恢复结束"},
+			PanicMessage:   "恢复失败",
+			PanicDetailFmt: "恢复任务异常中断: %v",
+			DoneFallback:   "恢复任务已结束",
+		}, nil, func(taskCtx context.Context, taskID string) error {
+			return utiles.RestoreContainer(taskCtx, ctx, filepath.Base(fullPath), taskID, utiles.RestoreOptions{
+				StartOverride: startOverride,
+				Force:         force,
+				NameMap:       nameMap,
+			})
 		})
+		restoreErr := <-doneCh
 		final, _ := ctx.GetProgress(taskID)
-		message := final.Message
-		if message == "" {
-			message = "恢复任务已结束"
-		}
-		detail := final.DetailMsg
-		if detail == "" {
-			detail = message
-		}
-		utiles.NotifyTaskDone("restore", filename, taskID, restoreErr == nil, message)
-		utiles.AuditLog("container.restore", filename, detail)
 		if restoreErr != nil {
 			return mcp.NewToolResultError(restoreErr.Error()), nil
 		}

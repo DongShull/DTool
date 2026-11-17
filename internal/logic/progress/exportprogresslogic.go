@@ -62,13 +62,9 @@ func (l *ExportProgressLogic) ExportProgress(req *types.ExportProgressReq) (resp
 	}
 	data, err := json.MarshalIndent(export, "", "  ")
 	if err != nil {
-		resp.Code = 500
-		resp.Msg = fmt.Sprintf("导出序列化失败: %v", err)
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeServerError, fmt.Sprintf("导出序列化失败: %v", err), map[string]interface{}{})
 		return resp, err
 	}
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = json.RawMessage(data)
+	resp = types.OK(json.RawMessage(data))
 	return resp, nil
 }

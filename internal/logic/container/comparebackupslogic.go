@@ -28,14 +28,10 @@ func (l *CompareBackupsLogic) CompareBackups(req *types.BackupCompareReq) (resp 
 	resp = &types.Resp{}
 	result, err := utiles.CompareBackups(req.Old, req.New)
 	if err != nil {
-		resp.Code = 400
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeBadRequest, err.Error(), map[string]interface{}{})
 		return resp, nil
 	}
 	utiles.AuditLog("container.backup.compare", req.Old+" → "+req.New, "diff computed")
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = result
+	resp = types.OK(result)
 	return resp, nil
 }

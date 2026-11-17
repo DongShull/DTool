@@ -29,19 +29,19 @@ func (l *BackupLogic) Backup(req *types.BackupContainersReq) (resp *types.Resp, 
 	resp = &types.Resp{}
 	failures, err := utiles.BackupContainer(l.svcCtx, req.Include...)
 	if err != nil {
-		resp.Code = 500
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{"failures": failures}
+		resp = types.Fail(types.CodeServerError, err.Error(), map[string]interface{}{"failures": failures})
 		return resp, err
 	}
 	// 部分失败必须与"全部成功"在协议层可区分：HTTP 207 + code 207。
 	// 旧实现把部分失败也报成 200/success，前端与脚本会认为整份备份可用。
-	resp.Code = 200
-	resp.Msg = "success"
+	msg := "success"
+	code := types.CodeOK
+	// 部分失败必须与"全部成功"在协议层可区分：HTTP 207 + code 207。
+	// 旧实现把部分失败也报成 200/success，前端与脚本会认为整份备份可用。
 	if len(failures) > 0 {
-		resp.Code = 207
-		resp.Msg = fmt.Sprintf("备份部分失败：%d 个容器未写入备份文件", len(failures))
+		code, msg = types.CodePartial, fmt.Sprintf("备份部分失败：%d 个容器未写入备份文件", len(failures))
 	}
-	resp.Data = map[string]interface{}{"failures": failures}
+	resp = types.OK(map[string]interface{}{"failures": failures}, msg)
+	resp.Code = code
 	return resp, nil
 }

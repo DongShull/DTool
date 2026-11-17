@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -101,5 +102,23 @@ func TestFetchVersionFromURLRejectsNon200(t *testing.T) {
 
 	if _, err := fetchVersionFromURL(server.URL); err == nil {
 		t.Fatal("fetchVersionFromURL() expected HTTP 404 error")
+	}
+}
+
+// 并发重入（TryLock 失败）不算一次更新尝试：不得写历史、不得触发失败通知。
+// 回归用例：曾因 defer 在 TryLock 之前注册，导致并发调用也 AppendUpdateHistory(false)。
+func TestUpdateProgramRunningSkipsHistory(t *testing.T) {
+	historyFile := filepath.Join(t.TempDir(), "update-history.json")
+	t.Setenv("UPDATE_HISTORY", historyFile)
+
+	updateProgramMu.Lock()
+	err := UpdateProgram(nil, UpdateOptions{Manual: true})
+	updateProgramMu.Unlock()
+
+	if !errors.Is(err, ErrUpdateProgramRunning) {
+		t.Fatalf("UpdateProgram() error = %v, want ErrUpdateProgramRunning", err)
+	}
+	if _, statErr := os.Stat(historyFile); !os.IsNotExist(statErr) {
+		t.Fatalf("并发重入不应写更新历史，文件状态: %v", statErr)
 	}
 }

@@ -26,16 +26,13 @@ func NewStopLogic(ctx context.Context, svcCtx *svc.ServiceContext) *StopLogic {
 
 func (l *StopLogic) Stop(req *types.IdReq) (resp *types.Resp, err error) {
 	resp = &types.Resp{}
-	err = utiles.StopContainer(l.svcCtx, req.Id)
+	// 幂等停止：已停止直接成功；paused 先取消暂停再停止。
+	err = utiles.EnsureContainerStopped(l.svcCtx, req.Id)
 	if err != nil {
-		resp.Code = 400
-		resp.Msg = err.Error()
-		resp.Data = map[string]interface{}{}
+		resp = types.Fail(types.CodeBadRequest, err.Error(), map[string]interface{}{})
 		return resp, err
 	}
 	utiles.AuditLog("container.stop", req.Id, "")
-	resp.Code = 200
-	resp.Msg = "success"
-	resp.Data = map[string]interface{}{}
+	resp = types.OK(map[string]interface{}{})
 	return resp, nil
 }

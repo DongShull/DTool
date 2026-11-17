@@ -58,6 +58,7 @@ func NewServer(ctx *svc.ServiceContext) *server.MCPServer {
 	registerSettingsTools(mcpServer, ctx)
 	registerVersionTools(mcpServer, ctx)
 	registerSystemTools(mcpServer, ctx)
+	registerComposeTools(mcpServer, ctx)
 
 	return mcpServer
 }

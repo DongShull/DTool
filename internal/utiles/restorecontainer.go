@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DongShull/DTool/internal/svc"
@@ -30,6 +31,11 @@ func restoreShouldStart(entry ContainerBackupEntry, startOverride *bool) bool {
 	// 旧备份没有状态字段：保持之前“恢复后启动”的行为。
 	return true
 }
+
+// restoreSerialMu 串行化恢复流程之间（不挡更新/改名/启停）：
+// 变更锁条目粒度化后，靠它保证两个恢复任务不会交错执行各自的
+// "检查同名容器 → 创建"窗口。见 RestoreContainer 内注释。
+var restoreSerialMu sync.Mutex
 
 // restoreOldContainerName 为被替换的旧容器生成临时名。
 // 恢复流程先把旧容器改名而不是直接删除，新容器创建/启动失败时才能完整回滚。
@@ -132,10 +138,12 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 		serviceContext.UpdateProgress(taskID, progress)
 		return fmt.Errorf("Docker 客户端未初始化，请检查 DOCKER_HOST 配置")
 	}
-	// 与更新/改名/启停共用一把全局变更锁：恢复期间的 stop→rename→create
-	// 不能让别的操作插进来（反之亦然）。
-	unlockMutation := LockContainerMutation()
-	defer unlockMutation()
+	// 恢复任务之间整流程互斥：下方变更锁改为条目粒度后，若两个恢复任务
+	// 并发，可能都通过"同名容器不存在"的检查再各自创建同名容器。恢复是
+	// 低频人工操作，整流程互斥即可；这把锁只挡恢复对恢复，不再让分钟级
+	// 的镜像拉取占用全局变更锁（与更新链路对齐，见下方循环内注释）。
+	restoreSerialMu.Lock()
+	defer restoreSerialMu.Unlock()
 	fullPath, err := ResolveBackupPath(filename, ".json")
 	if err != nil {
 		logx.Errorf("解析备份文件路径失败: %v", err)
@@ -227,42 +235,88 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 		startDesired := restoreShouldStart(entry, startOverride)
 		keepPaused := startOverride == nil && entry.StateKnown && entry.WasPaused
 		hasName := strings.TrimSpace(entry.Name) != ""
-		var replaceExisting *dockerTypes.ContainerJSON
 
-		// 幂等恢复：同名容器已存在时，默认不重复创建。
+		// 幂等预检（无锁，只读）：同名容器已存在且镜像一致时无需拉镜像。
+		needPull := true
 		if hasName {
 			existing, inspectErr := inspectRestoreTarget(taskCtx, serviceContext, entry.Name)
 			if inspectErr != nil {
 				failures = append(failures, entry.Name+" 检查同名容器失败: "+inspectErr.Error())
 				continue
 			}
-			if existing != nil {
-				if force {
-					// 拉镜像成功后再停止/改名旧容器；创建或启动失败时还能完整回滚。
-					replaceExisting = existing
-				} else {
-					if existing.Config != nil && existing.Config.Image != entry.Config.Image {
-						failures = append(failures, entry.Name+" 已存在且镜像不一致（现有 "+existing.Config.Image+"，备份 "+entry.Config.Image+"），如需覆盖请使用 force=true")
-						continue
+			if existing != nil && !force {
+				if existing.Config != nil && existing.Config.Image != entry.Config.Image {
+					failures = append(failures, entry.Name+" 已存在且镜像不一致（现有 "+existing.Config.Image+"，备份 "+entry.Config.Image+"），如需覆盖请使用 force=true")
+					continue
+				}
+				needPull = false
+			}
+		}
+
+		// 镜像拉取是分钟级操作，放在全局变更锁外执行（与更新链路对齐）。
+		// 变更窗口（检查→停旧→改名→建新→启动→失败回滚→清理旧容器）在下方
+		// 锁内闭包中完成；闭包内会重新 inspect 目标（check-then-act），且
+		// 恢复任务之间由 restoreSerialMu 整流程互斥，检查结果不会被另一个
+		// 恢复流程推翻。
+		if needPull {
+			err = func() error {
+				reader, pullErr := serviceContext.DockerClient.ImagePull(taskCtx, entry.Config.Image, image.PullOptions{})
+				if pullErr != nil {
+					return fmt.Errorf("拉取镜像失败: %w", pullErr)
+				}
+				defer func() {
+					if closeErr := reader.Close(); closeErr != nil {
+						logx.Errorf("关闭镜像拉取流失败: %v", closeErr)
 					}
+				}()
+				if pullErr = decodePullResp(reader, serviceContext, taskCtx, taskID); pullErr != nil {
+					return fmt.Errorf("拉取镜像失败: %w", pullErr)
+				}
+				return nil
+			}()
+			if err != nil {
+				logx.Errorf("恢复容器 %s 拉取镜像失败: %v", entry.Name, err)
+				failures = append(failures, entry.Name+" 拉取镜像失败: "+err.Error())
+				continue
+			}
+		}
+
+		// 变更窗口：条目粒度持有全局变更锁。窗口内任一步失败都在锁内
+		// 用独立 Background ctx 回滚（rollbackRestoredContainer），取消
+		// 语义不变（窗口内各步骤仍用 taskCtx）。
+		if lockErr := func() error {
+			unlockMutation := LockContainerMutation()
+			defer unlockMutation()
+
+			// 锁内复查（check-then-act）：拉镜像期间同名容器可能被其它
+			// 操作创建/删除；恢复任务之间由 restoreSerialMu 整流程互斥，
+			// 检查结果不会被另一个恢复流程推翻。
+			var replaceExisting *dockerTypes.ContainerJSON
+			if hasName {
+				existing, inspectErr := inspectRestoreTarget(taskCtx, serviceContext, entry.Name)
+				if inspectErr != nil {
+					return fmt.Errorf("%s 检查同名容器失败: %w", entry.Name, inspectErr)
+				}
+				if existing != nil && !force {
+					if existing.Config != nil && existing.Config.Image != entry.Config.Image {
+						return fmt.Errorf("%s 已存在且镜像不一致（现有 %s，备份 %s），如需覆盖请使用 force=true", entry.Name, existing.Config.Image, entry.Config.Image)
+					}
+					// 幂等恢复：已存在且镜像一致，按需拉起到目标状态，不重复创建。
 					if startDesired {
 						if existing.State != nil && existing.State.Paused {
 							if !keepPaused {
 								if unpauseErr := serviceContext.DockerClient.ContainerUnpause(taskCtx, existing.ID); unpauseErr != nil {
-									failures = append(failures, entry.Name+" 已存在但取消暂停失败: "+unpauseErr.Error())
-									continue
+									return fmt.Errorf("%s 已存在但取消暂停失败: %w", entry.Name, unpauseErr)
 								}
 							}
 						} else if existing.State == nil || !existing.State.Running {
 							if startErr := serviceContext.DockerClient.ContainerStart(taskCtx, existing.ID, container.StartOptions{}); startErr != nil {
-								failures = append(failures, entry.Name+" 已存在但启动失败: "+startErr.Error())
-								continue
+								return fmt.Errorf("%s 已存在但启动失败: %w", entry.Name, startErr)
 							}
 						}
 						if keepPaused && (existing.State == nil || !existing.State.Paused) {
 							if pauseErr := serviceContext.DockerClient.ContainerPause(taskCtx, existing.ID); pauseErr != nil {
-								failures = append(failures, entry.Name+" 已存在但暂停失败: "+pauseErr.Error())
-								continue
+								return fmt.Errorf("%s 已存在但暂停失败: %w", entry.Name, pauseErr)
 							}
 						}
 					}
@@ -270,108 +324,88 @@ func RestoreContainer(taskCtx context.Context, serviceContext *svc.ServiceContex
 					progress.Percentage = int(float64(i+1) / float64(len(configList)) * 90)
 					progress.DetailMsg = entry.Name + " 已存在，跳过创建"
 					serviceContext.UpdateProgress(taskID, progress)
-					continue
+					return nil
+				}
+				if existing != nil && force {
+					// 拉镜像成功后再停止/改名旧容器；创建或启动失败时还能完整回滚。
+					if existing.State == nil {
+						return fmt.Errorf("%s 旧容器状态未知，无法安全执行 force 覆盖", entry.Name)
+					}
+					replaceExisting = existing
 				}
 			}
-		}
 
-		err = func() error {
-			reader, pullErr := serviceContext.DockerClient.ImagePull(taskCtx, entry.Config.Image, image.PullOptions{})
-			if pullErr != nil {
-				return fmt.Errorf("拉取镜像失败: %w", pullErr)
-			}
-			defer func() {
-				if closeErr := reader.Close(); closeErr != nil {
-					logx.Errorf("关闭镜像拉取流失败: %v", closeErr)
-				}
-			}()
-			if pullErr = decodePullResp(reader, serviceContext, taskCtx, taskID); pullErr != nil {
-				return fmt.Errorf("拉取镜像失败: %w", pullErr)
-			}
-			return nil
-		}()
-		if err != nil {
-			logx.Errorf("恢复容器 %s 拉取镜像失败: %v", entry.Name, err)
-			failures = append(failures, entry.Name+" 拉取镜像失败: "+err.Error())
-			continue
-		}
-
-		oldID := ""
-		oldWasRunning := false
-		oldWasPaused := false
-		oldTempName := ""
-		if replaceExisting != nil {
-			if replaceExisting.State == nil {
-				failures = append(failures, entry.Name+" 旧容器状态未知，无法安全执行 force 覆盖")
-				continue
-			}
-			oldID = replaceExisting.ID
-			oldWasRunning = replaceExisting.State.Running
-			oldWasPaused = replaceExisting.State.Paused
-			stopTimeout := 10
-			if oldWasRunning {
-				if oldWasPaused {
-					if unpauseErr := serviceContext.DockerClient.ContainerUnpause(taskCtx, replaceExisting.ID); unpauseErr != nil {
-						failures = append(failures, entry.Name+" 旧容器取消暂停失败: "+unpauseErr.Error())
-						continue
+			oldID := ""
+			oldWasRunning := false
+			oldWasPaused := false
+			oldTempName := ""
+			if replaceExisting != nil {
+				oldID = replaceExisting.ID
+				oldWasRunning = replaceExisting.State.Running
+				oldWasPaused = replaceExisting.State.Paused
+				stopTimeout := 10
+				if oldWasRunning {
+					if oldWasPaused {
+						if unpauseErr := serviceContext.DockerClient.ContainerUnpause(taskCtx, replaceExisting.ID); unpauseErr != nil {
+							return fmt.Errorf("%s 旧容器取消暂停失败: %w", entry.Name, unpauseErr)
+						}
+					}
+					if stopErr := serviceContext.DockerClient.ContainerStop(taskCtx, replaceExisting.ID, container.StopOptions{Signal: "SIGTERM", Timeout: &stopTimeout}); stopErr != nil {
+						rollbackMsg := rollbackRestoredContainer(serviceContext, replaceExisting.ID, entry.Name, "", "", oldWasRunning, oldWasPaused)
+						return fmt.Errorf("%s 旧容器停止失败: %s%s", entry.Name, stopErr.Error(), rollbackMsg)
 					}
 				}
-				if stopErr := serviceContext.DockerClient.ContainerStop(taskCtx, replaceExisting.ID, container.StopOptions{Signal: "SIGTERM", Timeout: &stopTimeout}); stopErr != nil {
+				oldTempName = restoreOldContainerName(entry.Name, time.Now())
+				if renameErr := serviceContext.DockerClient.ContainerRename(taskCtx, replaceExisting.ID, oldTempName); renameErr != nil {
 					rollbackMsg := rollbackRestoredContainer(serviceContext, replaceExisting.ID, entry.Name, "", "", oldWasRunning, oldWasPaused)
-					failures = append(failures, entry.Name+" 旧容器停止失败: "+stopErr.Error()+rollbackMsg)
-					continue
+					return fmt.Errorf("%s 旧容器改名失败: %s%s", entry.Name, renameErr.Error(), rollbackMsg)
 				}
 			}
-			oldTempName = restoreOldContainerName(entry.Name, time.Now())
-			if renameErr := serviceContext.DockerClient.ContainerRename(taskCtx, replaceExisting.ID, oldTempName); renameErr != nil {
-				rollbackMsg := rollbackRestoredContainer(serviceContext, replaceExisting.ID, entry.Name, "", "", oldWasRunning, oldWasPaused)
-				failures = append(failures, entry.Name+" 旧容器改名失败: "+renameErr.Error()+rollbackMsg)
-				continue
-			}
-		}
 
-		created, createErr := serviceContext.DockerClient.ContainerCreate(
-			taskCtx,
-			entry.Config,
-			entry.HostConfig,
-			restoreNetworkingConfig(entry.NetworkingConfig),
-			nil,
-			entry.Name,
-		)
-		if createErr != nil {
-			rollbackMsg := rollbackRestoredContainer(serviceContext, oldID, entry.Name, oldTempName, "", oldWasRunning, oldWasPaused)
-			logx.Errorf("恢复容器 %s 创建失败: %v", entry.Name, createErr)
-			failures = append(failures, entry.Name+" 创建失败: "+createErr.Error()+rollbackMsg)
+			created, createErr := serviceContext.DockerClient.ContainerCreate(
+				taskCtx,
+				entry.Config,
+				entry.HostConfig,
+				restoreNetworkingConfig(entry.NetworkingConfig),
+				nil,
+				entry.Name,
+			)
+			if createErr != nil {
+				rollbackMsg := rollbackRestoredContainer(serviceContext, oldID, entry.Name, oldTempName, "", oldWasRunning, oldWasPaused)
+				logx.Errorf("恢复容器 %s 创建失败: %v", entry.Name, createErr)
+				return fmt.Errorf("%s 创建失败: %s%s", entry.Name, createErr.Error(), rollbackMsg)
+			}
+			if startDesired {
+				if startErr := serviceContext.DockerClient.ContainerStart(taskCtx, created.ID, container.StartOptions{}); startErr != nil {
+					rollbackMsg := rollbackRestoredContainer(serviceContext, oldID, entry.Name, oldTempName, created.ID, oldWasRunning, oldWasPaused)
+					return fmt.Errorf("%s 启动失败: %s%s", entry.Name, startErr.Error(), rollbackMsg)
+				}
+				if keepPaused {
+					if pauseErr := serviceContext.DockerClient.ContainerPause(taskCtx, created.ID); pauseErr != nil {
+						rollbackMsg := rollbackRestoredContainer(serviceContext, oldID, entry.Name, oldTempName, created.ID, oldWasRunning, oldWasPaused)
+						return fmt.Errorf("%s 启动成功但暂停失败: %s%s", entry.Name, pauseErr.Error(), rollbackMsg)
+					}
+				}
+			}
+
+			// 新容器已经创建并达到目标状态，才真正删除被替换的旧容器。
+			result := entry.Name + " 恢复成功"
+			if replaceExisting != nil && oldTempName != "" {
+				cleanupCtx, cleanupCancel := dockerTimeout(context.Background(), dockerMutationTimeout)
+				if removeErr := serviceContext.DockerClient.ContainerRemove(cleanupCtx, replaceExisting.ID, container.RemoveOptions{Force: true}); removeErr != nil {
+					result = entry.Name + " 恢复成功，但旧容器清理失败，请手动删除 " + oldTempName + ": " + removeErr.Error()
+				}
+				cleanupCancel()
+			}
+			completed = append(completed, result)
+			progress.Percentage = int(float64(i+1) / float64(len(configList)) * 90)
+			progress.DetailMsg = result
+			serviceContext.UpdateProgress(taskID, progress)
+			return nil
+		}(); lockErr != nil {
+			failures = append(failures, lockErr.Error())
 			continue
 		}
-		if startDesired {
-			if startErr := serviceContext.DockerClient.ContainerStart(taskCtx, created.ID, container.StartOptions{}); startErr != nil {
-				rollbackMsg := rollbackRestoredContainer(serviceContext, oldID, entry.Name, oldTempName, created.ID, oldWasRunning, oldWasPaused)
-				failures = append(failures, entry.Name+" 启动失败: "+startErr.Error()+rollbackMsg)
-				continue
-			}
-			if keepPaused {
-				if pauseErr := serviceContext.DockerClient.ContainerPause(taskCtx, created.ID); pauseErr != nil {
-					rollbackMsg := rollbackRestoredContainer(serviceContext, oldID, entry.Name, oldTempName, created.ID, oldWasRunning, oldWasPaused)
-					failures = append(failures, entry.Name+" 启动成功但暂停失败: "+pauseErr.Error()+rollbackMsg)
-					continue
-				}
-			}
-		}
-
-		// 新容器已经创建并达到目标状态，才真正删除被替换的旧容器。
-		result := entry.Name + " 恢复成功"
-		if replaceExisting != nil && oldTempName != "" {
-			cleanupCtx, cleanupCancel := dockerTimeout(context.Background(), dockerMutationTimeout)
-			if removeErr := serviceContext.DockerClient.ContainerRemove(cleanupCtx, replaceExisting.ID, container.RemoveOptions{Force: true}); removeErr != nil {
-				result = entry.Name + " 恢复成功，但旧容器清理失败，请手动删除 " + oldTempName + ": " + removeErr.Error()
-			}
-			cleanupCancel()
-		}
-		completed = append(completed, result)
-		progress.Percentage = int(float64(i+1) / float64(len(configList)) * 90)
-		progress.DetailMsg = result
-		serviceContext.UpdateProgress(taskID, progress)
 	}
 
 	if err = taskCtx.Err(); err != nil {
